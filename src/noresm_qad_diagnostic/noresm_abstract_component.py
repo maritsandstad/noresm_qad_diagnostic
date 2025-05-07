@@ -71,6 +71,10 @@ class NorESMAbstractComponent(ABC):
         
         setup_nested_folder_structure_from_dict(outdir, subfolder_structure)
         self.outdir = f"{outdir}/{self.casename}"
+    
+    def get_file_str_for_regex(self):
+        filestr_for_regex = ".".join(self.filelist[0].split(".")[-4:-2])
+        return filestr_for_regex
 
     #def clean_out_empty_folders(self):
     #    clean_empty_folders_in_tree(self.outdir)
@@ -104,7 +108,7 @@ class NorESMAbstractComponent(ABC):
             varlist = self.var_pams["VAR_LIST_MAIN"]
         for year in year_range:
             for month in range(12):
-                mfile = f"{self.datapath}/{self.casename}.clm2.h0.{year:04d}-{month + 1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 # print(outd_here)
                 # sys.exit(4)
@@ -134,7 +138,7 @@ class NorESMAbstractComponent(ABC):
         for year in year_range:
             outd_yr = None
             for month in range(12):                         
-                mfile = f"{self.datapath}/{self.casename}.clm2.h0.{year:04d}-{month + 1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 # print(outd_here)
                 # sys.exit(4)
@@ -157,11 +161,11 @@ class NorESMAbstractComponent(ABC):
             year_range = self.get_year_range()
         for year in year_range:
             for month in range(12): 
-                mfile = f"{self.datapath}/{self.casename}.clm2.h0.{year:04d}-{month + 1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 outd_here = self.regrid(outd_here)
                 if area_def is not None:
-                    outd_here = outd_regr.sel(
+                    outd_here = outd_here.sel(
                     lat=slice(area_def["lat_s"], area_def["lat_n"]),
                     lon=slice(area_def["lon_w"], area_def["lon_e"]),
                 )                      
@@ -209,7 +213,7 @@ class NorESMAbstractComponent(ABC):
                     month = 12
                 # print(f"Season: {season}, monthincr: {monthincr}, month: {monthincr}")
                 mfile = (
-                    f"{self.datapath}/{self.casename}.clm2.h0.{year:04d}-{month:02d}.nc"
+                    f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month:02d}.nc"
                 )
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[self.var_pams["VAR_LIST_MAIN"]]
                 # print(outd_here)
@@ -230,7 +234,7 @@ class NorESMAbstractComponent(ABC):
             outd = None
             for year in year_range:
                 # print(f"Season: {season}, monthincr: {monthincr}, month: {monthincr}")
-                mfile = f"{self.datapath}/{self.casename}.clm2.h0.{year:04d}-{month+1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month+1:02d}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[self.var_pams["VAR_LIST_MAIN"]]
                 # print(outd_here)
                 # sys.exit(4)

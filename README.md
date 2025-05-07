@@ -1,6 +1,6 @@
 # noresm_qad_diagnostic
 
-A quick and dirty diagnostic tool for NorESMto produce various overview plots and tables for
+A quick and dirty diagnostic tool for NorESM to produce various overview plots and tables
 
 Currently very much a work in progress based on xesmf land diagnostic,
 

@@ -71,4 +71,5 @@ class NorESMQADD:
     def check_drift_criteria(self):
         pass
 
-    def make_perf_heatmaps(self)
+    def make_perf_heatmaps(self):
+        pass
