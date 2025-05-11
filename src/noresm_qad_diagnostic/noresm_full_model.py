@@ -14,6 +14,7 @@ warnings.filterwarnings("ignore")
 
 from .noresm_concrete_components import NorESMAtmComponent, NorESMLndComponent, NorESMOcnComponent, NorESMGlcComponent, NorESMIceComponent
 
+# Ocean might need to be multiple components...
 DEFAULT_PAMS = {
     "atm": ["TREFHT", "DOD550"],
     "ocn": ["sst", "sss"],
@@ -31,12 +32,19 @@ KEY_COMP_MAPPING = {
 
 class NorESMFullModel:
 
-    def __init__(self, datapath, pamfile=None):
+    def __init__(self, datapath, pamfile=None, casename=None):
         self.datapath = datapath
-        self._set_components()
+        self.casename = casename
+        self._set_components(pamfile=pamfile)
+        if self.casename is None:
+            for compname, comp in self.components.items():
+                if comp.casename is not None:
+                    self.casename = comp.casename
+                    break
 
     def _set_components(self, pamfile):
         self.components = {}
+        vars_missing = {}
         if pamfile is None:
             pams = DEFAULT_PAMS
         elif isinstance(pamfile, dict):
@@ -44,8 +52,9 @@ class NorESMFullModel:
         else:
             with open(pamfile, 'r') as jsonfile:
                 pams = json.load(jsonfile)
-        for key, values in pams.items():
+        for key, values in pams["VAR_LIST_MAIN"].items():
+            print(f"Now initialising {key}")
             #Deal with weighting for land:
-            self.components[key] = KEY_COMP_MAPPING[key](self.datapath, values)
+            self.components[key] = KEY_COMP_MAPPING[key](self.datapath, values, casename = self.casename)
 
         

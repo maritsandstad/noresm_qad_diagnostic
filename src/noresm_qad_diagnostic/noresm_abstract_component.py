@@ -2,7 +2,7 @@ import numpy as np
 
 import xarray as xr
 
-import os, glob
+import os, glob, sys
 
 # import netCDF4 as nc4
 import warnings
@@ -27,35 +27,57 @@ class NorESMAbstractComponent(ABC):
     Methods on getting data on various formats etc.
     """
     def __init__(
-        self, datapath, varlists, casename=None,
+        self, datapath, varlist, casename=None,
     ):
         self.datapath = datapath
         #self.var_pams = read_pam_file(pamfile)
         self.filelist = self.get_filelist()
         self.filelist.sort()
-        self.varpams = varlists
+        self.varpams = varlist
+        print(self.varpams)
         if casename is None:
             self.casename = ".".join(self.filelist[0].split("/")[-1].split(".")[:-4])
         else:
             self.casename = casename
         self.unit_dict = {}
         vars_missing = self.wet_and_cut_varlists()
+        print(self.varpams)
+
         if len(vars_missing):
             print("Not all requested variables are available in output, ignoring these:")
             print(vars_missing)
+        self.add_to_unit_dict(self.varpams)
 
     def wet_and_cut_varlists(self):
         # TODO: Make sure all items in SEASONAL is also in var_list_main 
         read = xr.open_dataset(self.filelist[0]).keys()
-        lists_check =["VAR_LIST_MAIN", "COMPARE_VARIABLES"]
+        #lists_check =["VAR_LIST_MAIN", "COMPARE_VARIABLES"]
 
         vars_missing = []
-        for list_n in lists_check:
-            for item in self.var_pams[list_n]:
-                if item not in read:
-                    vars_missing.append(item)
-            self.var_pams[list_n] = list(set(self.var_pams[list_n]) - set(vars_missing))
-        return vars_missing
+        for item in self.varpams:
+            if item not in read:
+                vars_missing.append(item)
+        self.varpams = list(set(self.varpams) - set(vars_missing))
+
+        return vars_missing       
+        #for list_n in lists_check:
+        #    for item in self.varpams[list_n]:
+        #        if item not in read:
+        #            vars_missing.append(item)
+        #    self.varpams[list_n] = list(set(self.varpams[list_n]) - set(vars_missing))
+        #return vars_missing
+
+    def add_to_unit_dict(self, varlist):
+        missing = list(set(varlist) - set(self.unit_dict.keys()))
+        if len(missing) < 1:
+            return
+        read = xr.open_dataset(self.filelist[0])
+        for vrm in missing:
+            if vrm in read.keys():
+                if "units" in read[vrm].attrs.keys():
+                    self.unit_dict[vrm] = do_light_unit_string_conversion(read[vrm].attrs["units"])
+                else:
+                    self.unit_dict[vrm] = "No unit"
 
     def setup_folder_structure(self, outdir):
         if not os.path.exists(outdir):
@@ -75,6 +97,12 @@ class NorESMAbstractComponent(ABC):
     def get_file_str_for_regex(self):
         filestr_for_regex = ".".join(self.filelist[0].split(".")[-4:-2])
         return filestr_for_regex
+    
+    def get_file_str_ending(self):
+        fileending = self.filelist[0].split(".")[-2]
+        if len(fileending) <= 7:
+            return ""
+        return fileending[7:]
 
     #def clean_out_empty_folders(self):
     #    clean_empty_folders_in_tree(self.outdir)
@@ -105,10 +133,10 @@ class NorESMAbstractComponent(ABC):
         """
         outd = None
         if varlist is None:
-            varlist = self.var_pams["VAR_LIST_MAIN"]
+            varlist = self.varpams["VAR_LIST_MAIN"]
         for year in year_range:
             for month in range(12):
-                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}{self.get_file_str_ending()}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 # print(outd_here)
                 # sys.exit(4)
@@ -134,11 +162,11 @@ class NorESMAbstractComponent(ABC):
         """
         outd = None
         if varlist is None:
-            varlist = self.var_pams["VAR_LIST_MAIN"]
+            varlist = self.varpams["VAR_LIST_MAIN"]
         for year in year_range:
             outd_yr = None
             for month in range(12):                         
-                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}{self.get_file_str_ending()}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 # print(outd_here)
                 # sys.exit(4)
@@ -155,13 +183,15 @@ class NorESMAbstractComponent(ABC):
     
     def get_area_mean_ts_data(self, varlist = None, year_range=None, area_def = None):
         outd = None
+        print(varlist)
+        print(self.varpams)
         if varlist is None:
-            varlist = self.var_pams["VAR_LIST_MAIN"]
+            varlist = self.varpams["VAR_LIST_MAIN"]
         if year_range is None:
             year_range = self.get_year_range()
         for year in year_range:
             for month in range(12): 
-                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}{self.get_file_str_ending()}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 outd_here = self.regrid(outd_here)
                 if area_def is not None:
@@ -169,7 +199,7 @@ class NorESMAbstractComponent(ABC):
                     lat=slice(area_def["lat_s"], area_def["lat_n"]),
                     lon=slice(area_def["lon_w"], area_def["lon_e"]),
                 )                      
-                weights = np.cos(np.deg2rad(outd_here.lat))
+                weights = self.get_weights()
                 weighted_data = outd_here.weighted(weights)
                 ts_data = weighted_data.mean(["lon", "lat"])
                 if not outd:
@@ -178,6 +208,8 @@ class NorESMAbstractComponent(ABC):
                     outd = xr.concat([outd, ts_data], dim="time")
         return outd
     
+    def get_weights(self):
+        return np.cos(np.deg2rad(outd_here.lat))
     
     def regrid(self, data):
         return data
@@ -204,7 +236,7 @@ class NorESMAbstractComponent(ABC):
         """
         outd = None
         if varlist is None:
-            varlist = self.var_pams["VAR_LIST_MAIN"]
+            varlist = self.varpams["VAR_LIST_MAIN"]
         for year in year_range:
             for monthincr in range(3):
 
@@ -213,7 +245,7 @@ class NorESMAbstractComponent(ABC):
                     month = 12
                 # print(f"Season: {season}, monthincr: {monthincr}, month: {monthincr}")
                 mfile = (
-                    f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month:02d}.nc"
+                    f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month:02d}{self.get_file_str_ending()}.nc"
                 )
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[self.var_pams["VAR_LIST_MAIN"]]
                 # print(outd_here)
@@ -234,7 +266,7 @@ class NorESMAbstractComponent(ABC):
             outd = None
             for year in year_range:
                 # print(f"Season: {season}, monthincr: {monthincr}, month: {monthincr}")
-                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month+1:02d}.nc"
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month+1:02d}{self.get_file_str_ending()}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[self.var_pams["VAR_LIST_MAIN"]]
                 # print(outd_here)
                 # sys.exit(4)
@@ -259,3 +291,11 @@ class NorESMAbstractComponent(ABC):
         else:
             raise ValueError(f"Files are missing in the year range from {year_start}, {year_end}") 
         return year_range
+    
+    def find_case_year_range(self):
+        year_start = int(self.filelist[0].split(".")[-2].split("-")[0])
+        year_end = int(self.filelist[-1].split(".")[-2].split("-")[0])
+        files_missing = False
+        if len(self.filelist) < (year_end - year_start) * 12:
+            files_missing = True
+        return year_start, year_end, files_missing
