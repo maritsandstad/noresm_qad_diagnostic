@@ -12,9 +12,9 @@ from abc import ABC, abstractmethod
 warnings.filterwarnings("ignore")
 
 from .plotting_methods import make_generic_regridder, regrid_se_data, make_bias_plot
-from .infrastructure_help_functions import setup_nested_folder_structure_from_dict, read_pam_file#, clean_empty_folders_in_tree
+from .infrastructure_help_functions import setup_nested_folder_structure_from_dict, get_spatial_coordinates#, clean_empty_folders_in_tree
 from  .misc_help_functions import get_unit_conversion_and_new_label, make_regridding_target_from_weightfile, get_unit_conversion_from_string, do_light_unit_string_conversion
-
+from .general_util_functions import yearly_avg, DAYS_PER_MONTH
 
 
 #def get_minimal_intersecting_year_range(year_range, year_range_other):
@@ -161,6 +161,7 @@ class NorESMAbstractComponent(ABC):
             outputfiles, they will be 
         """
         outd = None
+        factors = [DAYS_PER_MONTH["noleap"][month+1] / np.sum(DAYS_PER_MONTH["noleap"]) for month in range(12)]
         if varlist is None:
             varlist = self.varpams["VAR_LIST_MAIN"]
         for year in year_range:
@@ -171,10 +172,10 @@ class NorESMAbstractComponent(ABC):
                 # print(outd_here)
                 # sys.exit(4)
                 if not outd_yr:
-                    outd_yr = outd_here
+                    outd_yr = outd_here * factors[month]
                 else:
-                    outd_yr = xr.concat([outd_yr, outd_here], dim="time")
-            outd_yr = outd_yr.mean(dim="time")
+                    outd_yr = xr.concat([outd_yr, outd_here * factors[month]], dim="time")
+            outd_yr = outd_yr.sum(dim="time")
             if not outd:
                 outd = outd_yr
             else: 
@@ -183,32 +184,52 @@ class NorESMAbstractComponent(ABC):
     
     def get_area_mean_ts_data(self, varlist = None, year_range=None, area_def = None):
         outd = None
+        outd_year = None
         print(varlist)
         print(self.varpams)
+        factors = [DAYS_PER_MONTH["noleap"][month+1] / np.sum(DAYS_PER_MONTH["noleap"]) for month in range(12)]
         if varlist is None:
             varlist = self.varpams["VAR_LIST_MAIN"]
         if year_range is None:
             year_range = self.get_year_range()
+        weights = None
+        spatial_coords = None
         for year in year_range:
-            for month in range(12): 
+            outd_yr_here = None
+            for month in range(12):
+
                 mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}{self.get_file_str_ending()}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 outd_here = self.regrid(outd_here)
+                if weights is None:
+                    weights = self.get_weights(outd_here)
+                if spatial_coords is None:
+                    get_spatial_coordinates(outd_here)
                 if area_def is not None:
                     outd_here = outd_here.sel(
                     lat=slice(area_def["lat_s"], area_def["lat_n"]),
                     lon=slice(area_def["lon_w"], area_def["lon_e"]),
                 )                      
-                weights = self.get_weights()
+                
                 weighted_data = outd_here.weighted(weights)
-                ts_data = weighted_data.mean(["lon", "lat"])
+                ts_data = weighted_data.mean(spatial_coords)
+                
                 if not outd:
                     outd = ts_data
                 else:
                     outd = xr.concat([outd, ts_data], dim="time")
-        return outd
+                if not outd_yr_here:
+                    outd_yr_here = ts_data * factors[month]
+                else:
+                    outd_yr_here = xr.concat([outd_yr_here, ts_data*factors[month]], dim="time")
+            outd_yr_here = outd_yr_here.sum(dim="time")
+            if not outd_year:
+                outd_year = outd_yr_here
+            else: 
+                outd_year = xr.concat([outd_year, outd_yr_here], dim="time")
+        return outd_year, outd
     
-    def get_weights(self):
+    def get_weights(self, outd_here):
         return np.cos(np.deg2rad(outd_here.lat))
     
     def regrid(self, data):

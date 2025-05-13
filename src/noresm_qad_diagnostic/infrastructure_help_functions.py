@@ -64,6 +64,14 @@ def read_pam_file(pam_file_path):
 def make_monthly_taxis_from_years(years):
     return [years[0] + tstep/12. for tstep in range(12*len(years))]
     
+def get_spatial_coordinates(spatial_data):
+    if "lat" and "lon" in spatial_data.keys():
+        return ["lat", "lon"]
+    if "x" and "y" in spatial_data.keys():
+        return ["x", "y"]
+    if "nj" and "ni" in spatial_data.keys():
+        return ["nj", "ni"]
+
 
 
   

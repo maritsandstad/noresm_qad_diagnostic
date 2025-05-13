@@ -106,11 +106,12 @@ class NorESMOcnComponent(NorESMAbstractComponent):
     regridding variables to plot up in diagnostics etc
     """
     def __init__(
-        self, datapath, varlist, casename=None
+        self, datapath, varlist, casename=None, weightfile = None
     ):
         super().__init__(f"{datapath}/ocn/hist/", varlist=varlist, casename=casename)  
 
-
+        if weightfile is None:
+            self.weightfile = ("/datalake/NS9560K/diagnostics/land_xesmf_diag_data/grid_tnx1v4_20170622.nc")
     #def clean_out_empty_folders(self):
     #    clean_empty_folders_in_tree(self.outdir)
 
@@ -126,9 +127,15 @@ class NorESMOcnComponent(NorESMAbstractComponent):
         #(f"{self.datapath}*.clm2.h0.*.nc")
         return glob.glob(f"{self.datapath}*.blom.hd.*.nc")
     
-    def get_weights():
+    def get_weights(self, outd_here):
         # TODO: Get areacella weights here
-        pass
+        grid = xr.open_dataset(self.weightfile)
+        pweight = grid.parea * grid.pmask.where(grid.pmask > 0)
+        pweight = pweight.fillna(0)
+        # add latitude and longitude info good to have in case of e.g. regridding
+        pweight = pweight.assign_coords(lat=grid.plat)
+        pweight = pweight.assign_coords(lon=grid.plon)
+        return pweight
     
 class NorESMIceComponent(NorESMAbstractComponent):
     """
@@ -139,7 +146,8 @@ class NorESMIceComponent(NorESMAbstractComponent):
         self, datapath, varlist, casename=None
     ):
         super().__init__(f"{datapath}/ice/hist/", varlist=varlist, casename=casename)
-
+        self.weight_dict = {}
+        self.precalc_weight_dict()
     #def clean_out_empty_folders(self):
     #    clean_empty_folders_in_tree(self.outdir)
 
@@ -155,6 +163,23 @@ class NorESMIceComponent(NorESMAbstractComponent):
         #(f"{self.datapath}*.clm2.h0.*.nc")
         return glob.glob(f"{self.datapath}*.cice.h.*.nc")
     
+    def precalc_weight_dict(self):
+        print(self.varpams)
+        ext_varlist = self.varpams.copy()
+        for areatype in ["tarea", "uarea", "narea","earea"]:
+            ext_varlist.append(areatype)
+        datause = xr.open_dataset(self.filelist[0])[ext_varlist]
+        for var in self.varpams:
+            if "cell_measures" in datause[var].attrs.keys():
+                print(datause[var].attrs["cell_measures"].split(" ")[-1])
+                self.weight_dict[var] = datause[datause[var].attrs["cell_measures"].split(" ")[-1]]
+
+    def get_weights(self, outd_here):
+        for key, weight in self.weight_dict.items():
+            if key in outd_here.keys():
+                return weight
+        return super().get_weights(outd_here)
+
     
 class NorESMGlcComponent(NorESMAbstractComponent):
     """

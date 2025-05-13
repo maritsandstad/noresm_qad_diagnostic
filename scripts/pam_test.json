@@ -1,0 +1,17 @@
+{
+    "VAR_LIST_MAIN" : {
+        "atm": ["TREFHT", "DOD550", "PRECT", "CLDTOT"],
+        "ocn": ["sst", "sss", "templvl"],
+        "ice": ["aice"], 
+        "lnd": ["nbp", "TOTSOMC", "TOTVEGC", "FATES_GPP", "FATES_LAI"]
+    },
+
+    "OBS_COMPARE_MAPS" :{
+        "TRFHT" : ["JRA"],
+        "PRECT" : ["JRA"],
+        "sst" : ["WOA"],
+        "sss" : ["WOA"],
+        "aice": ["False"], 
+        "lai": ["MODIS", "AVHRR"]
+    }
+}

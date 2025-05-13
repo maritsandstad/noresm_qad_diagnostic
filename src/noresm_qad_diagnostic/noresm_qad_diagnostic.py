@@ -86,37 +86,49 @@ class NorESMQADD:
         print(self.varpams['VAR_LIST_MAIN'])
         if title is None:
             title = f"Averaged trends {self.casename}"
-        fig = plt.figure(constrained_layout=True)
+        fig = plt.figure(constrained_layout=True, figsize=(30,30))
         fig.suptitle(title)
         subfigs = fig.subfigures(nrows=len(self.varpams['VAR_LIST_MAIN'].keys()), ncols=1)
-        print(len(subfigs))
         print(len(self.varpams.keys()))
         print(self.varpams.keys())
 
         for subfignum, (name, items) in enumerate(self.varpams['VAR_LIST_MAIN'].items()):
             print(subfignum)
-            subfigs[subfignum].suptitle(f"Trends from {name}")
+            if len(self.varpams['VAR_LIST_MAIN'].keys()) == 1:
+                subfignow = subfigs
+            else:
+                subfignow = subfigs[subfignum]
+            subfignow.suptitle(f"Trends from {name}")
             print(items)
             print(f"{name}")
             print(len(items))
             rownums = len(items)//5 + 1
             colnums = np.min((5, len(items)))
-            axs = subfigs[subfignum].subplots(nrows=rownums, ncols=colnums)
-            taxis = make_monthly_taxis_from_years(self.main_run.components[name].get_year_range())
-            outd = self.main_run.components[name].get_area_mean_ts_data(varlist=items)
+            axs = subfignow.subplots(nrows=rownums, ncols=colnums)
+            tyaxis = self.main_run.components[name].get_year_range()
+            taxis = make_monthly_taxis_from_years(tyaxis)
+            outd_year, outd = self.main_run.components[name].get_area_mean_ts_data(varlist=items)
             for subnum, item in enumerate(items):
-                if rownums == 1:
+                if colnums == 1:
+                    axnow = axs
+                elif rownums == 1:
                     axnow = axs[subnum]
                     print(f"{item}, {subnum}")
                 else:
                     axnow = axs[subnum//5, subnum%5]
                     print(f"{item}, {subnum}, {subnum//5}, {subnum%5}")
-                axnow.plot(taxis, outd[item].values.flatten())
+                # Monthly:
+                #axnow.plot(taxis, outd[item].values.flatten())
+                # Yearly
+                if len(outd_year[item].shape) > 0:
+                    axnow.plot(tyaxis, outd_year[item].values.flatten())
+                else:
+                    axnow.plot(tyaxis, outd_year[item])
                 axnow.set_title(f"{item} ({self.main_run.components[name].unit_dict[item]})")
                 axnow.set_xlabel("Year")
                 axnow.set_ylabel(f"{item} ({self.main_run.components[name].unit_dict[item]})")
 
-        fig.savefig(f"{self.outdir}/trends_drift/trend_overview_{self.casename}.png")
+        fig.savefig(f"{self.outdir}/trends_drift/trend_overview_{self.casename}_yearly.png")
 
     def add_to_ts_ax(self, vari_info):
         pass
