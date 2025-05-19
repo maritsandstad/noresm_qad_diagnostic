@@ -12,7 +12,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from .noresm_concrete_components import NorESMAtmComponent, NorESMLndComponent, NorESMOcnComponent, NorESMGlcComponent, NorESMIceComponent
+from .noresm_concrete_components import NorESMAtmComponent, NorESMLndComponent, NorESMOcnComponent, NorESMOcnbgcComponent, NorESMGlcComponent, NorESMIceComponent
 
 # Ocean might need to be multiple components...
 DEFAULT_PAMS = {
@@ -26,6 +26,7 @@ KEY_COMP_MAPPING = {
     "atm" : NorESMAtmComponent,
     "lnd" : NorESMLndComponent,
     "ocn" : NorESMOcnComponent,
+    "ocn-bgc": NorESMOcnbgcComponent,
     "ice": NorESMIceComponent,
     "glc": NorESMGlcComponent
 }
@@ -56,5 +57,5 @@ class NorESMFullModel:
             print(f"Now initialising {key}")
             #Deal with weighting for land:
             self.components[key] = KEY_COMP_MAPPING[key](self.datapath, values, casename = self.casename)
-
+            
         

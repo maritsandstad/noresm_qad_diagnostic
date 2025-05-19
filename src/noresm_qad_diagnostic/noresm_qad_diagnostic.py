@@ -46,6 +46,8 @@ class NorESMQADD:
         if outdir is None:
             outdir = "figs/"
         self.setup_folder_structure(outdir)
+        self.var_to_comp_map = {}
+        self.make_variable_to_comp_inverse_mapping()
 
     def cut_pamfile_to_existing(self):
         print(self.varpams)
@@ -73,41 +75,111 @@ class NorESMQADD:
         setup_nested_folder_structure_from_dict(outdir, subfolder_structure)
         self.outdir = f"{outdir}/{self.casename}"
 
-    def make_all_map_plots(self):
-        pass
+    def make_variable_to_comp_inverse_mapping(self):
+        for comp, varlist in self.varpams["VAR_LIST_MAIN"].items():
+            for variable in varlist:
+                self.var_to_comp_map[variable] = comp
+        to_pop = []
+        for variable in self.varpams['OBS_COMPARE_MAPS'].keys():
+            if variable not in self.var_to_comp_map.keys():
+                to_pop.append(variable)
+        for variable in to_pop:
+            self.varpams['OBS_COMPARE_MAPS'].pop(variable)
 
-    def make_single_comparison_map(self, vari_info):
-        pass
+
+    def make_all_map_plots(self, title = None):
+        if title is None:
+            title = f"Last 20 year climatology comparison {self.casename}"
+        print(self.varpams["OBS_COMPARE_MAPS"])
+        fig = plt.figure(constrained_layout=True, figsize=(30,40))
+        fig.suptitle(title)
+        subfigs = fig.subfigures(nrows=len(self.varpams['OBS_COMPARE_MAPS'].keys()), ncols=1)    
+        for subfignum, variable in enumerate(self.varpams['OBS_COMPARE_MAPS'].keys()):
+            if len(self.varpams['OBS_COMPARE_MAPS'].keys()) == 1:
+                subfignow = subfigs
+            else:
+                subfignow = subfigs[subfignum]
+            self.make_single_comparison_map(variable, subfignow)
+        fig.savefig(f"{self.outdir}/clim_maps/climatology_maps_{self.casename}.png")
+
+
+    def make_single_comparison_map(self, variable, subfig_handle):
+        print(variable)
+        subfig_handle.suptitle(f"20 year climatological comparison for {variable}")
+        if len(self.varpams['OBS_COMPARE_MAPS'][variable]) == 1 and self.varpams['OBS_COMPARE_MAPS'][variable][0] == 'False':
+            #Put in single map-plot
+            print(f"No observational data for {variable}")
+            axs = subfig_handle.subplots(
+                nrows=1, 
+                ncols=1,            
+                subplot_kw={"projection": ccrs.Robinson()},
+                )
+            plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist=variable)
+            make_bias_plot(plot_data, self.casename, ax = axs)
+        else:
+            # Put in map + map + changeplot
+            print(self.varpams['OBS_COMPARE_MAPS'][variable])
+            axs = subfig_handle.subplots(
+                nrows=1, 
+                ncols = 3, 
+                subplot_kw={"projection": ccrs.Robinson()},
+                )
+            yminv, ymaxv, diffrange, negdiffrange = self.ilamb_confs.configurations[variable].obs_limits
+            # Make this work...
+            #unit_conversion_factor, unit_to_print = get_unit_conversion_from_string(self.ilamb_confs.get_variable_plot_unit(variable), self.unit_dict[variable])
+            varname_ilamb =  self.ilamb_confs.get_vaname_in_ilamb_cfgs(variable)
+            plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist=variable)
+            make_bias_plot(
+                plot_data,
+                f"{self.casename}",
+                ax=axs[0],
+                yminv = yminv,
+                ymaxv = ymaxv,
+                xlabel = f"{variable}" #[{unit_to_print}]"
+                )
+            plot_data_obs = self.ilamb_confs.get_data_for_map_plot(varname_ilamb, self.main_run.components[self.var_to_comp_map[variable]].regrid_target)
+            make_bias_plot(
+                plot_data_obs,
+                f"{self.varpams['OBS_COMPARE_MAPS'][variable][0]}",
+                ax=axs[1],
+                yminv = yminv,
+                ymaxv = ymaxv,
+                xlabel = f"{variable}"#[{unit_to_print}]"
+                )
+            make_bias_plot(
+                plot_data_obs,
+                f"{self.casename} - {self.varpams['OBS_COMPARE_MAPS'][variable][0]}",
+                ax=axs[2],
+                yminv = negdiffrange,
+                ymaxv = diffrange,
+                xlabel = f"{variable}",#[{unit_to_print}]"
+                cmap = "RdYlBu_r"
+                )
+            axs[0].set_title(self.casename)
+            axs[1].set_title(self.varpams['OBS_COMPARE_MAPS'][variable][0])
+            axs[2].set_title("bias")
 
     def make_all_timeseries_plots(self):
         self.setup_ts_figs_and_axs()
 
     def setup_ts_figs_and_axs(self, title = None):
-        print(self.varpams['VAR_LIST_MAIN'])
         if title is None:
             title = f"Averaged trends {self.casename}"
         fig = plt.figure(constrained_layout=True, figsize=(30,30))
         fig.suptitle(title)
         subfigs = fig.subfigures(nrows=len(self.varpams['VAR_LIST_MAIN'].keys()), ncols=1)
-        print(len(self.varpams.keys()))
-        print(self.varpams.keys())
 
         for subfignum, (name, items) in enumerate(self.varpams['VAR_LIST_MAIN'].items()):
-            print(subfignum)
             if len(self.varpams['VAR_LIST_MAIN'].keys()) == 1:
                 subfignow = subfigs
             else:
                 subfignow = subfigs[subfignum]
             subfignow.suptitle(f"Trends from {name}")
-            print(items)
-            print(f"{name}")
-            print(len(items))
             rownums = len(items)//5 + 1
             colnums = np.min((5, len(items)))
             axs = subfignow.subplots(nrows=rownums, ncols=colnums)
             tyaxis = self.main_run.components[name].get_year_range()
-            taxis = make_monthly_taxis_from_years(tyaxis)
-            outd_year, outd = self.main_run.components[name].get_area_mean_ts_data(varlist=items)
+            outd_year = self.main_run.components[name].get_area_mean_ts_data(varlist=items)
             for subnum, item in enumerate(items):
                 if colnums == 1:
                     axnow = axs

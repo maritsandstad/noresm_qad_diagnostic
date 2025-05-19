@@ -9,7 +9,9 @@ import xarray as xr
 
 from .noresm_abstract_component import NorESMAbstractComponent
 from .plotting_methods import make_generic_regridder, regrid_se_data
-from  .misc_help_functions import make_regridding_target_from_weightfile
+#from .regrid_functions import make_regridder, regrid_file
+from .misc_help_functions import make_regridding_target_from_weightfile
+
 
 MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 
@@ -125,7 +127,7 @@ class NorESMOcnComponent(NorESMAbstractComponent):
             with paths to all the clm2.h0 files
         """
         #(f"{self.datapath}*.clm2.h0.*.nc")
-        return glob.glob(f"{self.datapath}*.blom.hd.*.nc")
+        return glob.glob(f"{self.datapath}*.blom.hm.*.nc")
     
     def get_weights(self, outd_here):
         # TODO: Get areacella weights here
@@ -136,6 +138,21 @@ class NorESMOcnComponent(NorESMAbstractComponent):
         pweight = pweight.assign_coords(lat=grid.plat)
         pweight = pweight.assign_coords(lon=grid.plon)
         return pweight
+    
+class NorESMOcnbgcComponent(NorESMOcnComponent):
+
+    def get_filelist(self):
+        """
+        Get a list of all the files for the case
+
+        Returns
+        -------
+        list
+            with paths to all the clm2.h0 files
+        """
+        #(f"{self.datapath}*.clm2.h0.*.nc")
+        return glob.glob(f"{self.datapath}*.blom.hbgcm.*.nc")
+
     
 class NorESMIceComponent(NorESMAbstractComponent):
     """
@@ -162,6 +179,10 @@ class NorESMIceComponent(NorESMAbstractComponent):
         """
         #(f"{self.datapath}*.clm2.h0.*.nc")
         return glob.glob(f"{self.datapath}*.cice.h.*.nc")
+    
+    def set_composite_variable_dict(self):
+        self.composite_variable_dict = {"aice-arctic": ["aice"], "aice-antarctic": ["aice"]}
+
     
     def precalc_weight_dict(self):
         print(self.varpams)

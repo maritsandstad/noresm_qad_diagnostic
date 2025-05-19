@@ -108,7 +108,7 @@ if len(glob.glob(f"{run_path}*/hist/*.nc")) < 1:
     print_help_message()
 
 
-ilamb_cfg = ilamb_configurations.IlambConfigurations("../tests/test-data/ilamb_CLMFATES.cfg")
+ilamb_cfg = ilamb_configurations.IlambConfigurations("ilamb_CLMFATES.cfg")
 print(ilamb_cfg.configurations["FATES_VEGC"].obs_limits)
 #sys.exit(4)
 
@@ -117,9 +117,9 @@ run_dict = read_optional_arguments(sys.argv[2:])
 print(f"All set, setting up to run diagnostics on {run_path} using options:")
 print(run_dict)
 
-test_qad_diag = noresm_qad_diagnostic.NorESMQADD(run_path, run_dict["pamfile"])
-test_qad_diag.make_all_timeseries_plots()
-
+test_qad_diag = noresm_qad_diagnostic.NorESMQADD(run_path, run_dict["pamfile"], ilamb_confs=ilamb_cfg)
+#test_qad_diag.make_all_timeseries_plots()
+test_qad_diag.make_all_map_plots()
 sys.exit(4)
 
 diagnostic = XesmfCLMFatesDiagnostics(
