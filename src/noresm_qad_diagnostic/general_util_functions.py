@@ -238,7 +238,7 @@ def yearly_avg(ds):
     """
     # Note! NorESM raw CAM h0 files have wrong time variable, necessary to use time boundaries to
     # get the correct time
-    print(ds.time)
+    #print(ds.time)
     month_length = ds.time.dt.days_in_month
     weights = month_length.groupby("time.year") / month_length.groupby("time.year").sum()
     # Test that the sum of the weights for each year is 1.0
@@ -588,7 +588,7 @@ def sea_ice_area(ds, pweight=None, cmor=True):
     return ds_out
 
 
-def select_atlantic_latbnds(ds):
+def select_atlantic_latbnds(ds, minimal = True):
     """
     Selects the Atlantic meridional overtuning streamfunction / heat transport 
     @2&N (rapid), @45N and the maximum between 20N and 60N
@@ -604,13 +604,18 @@ def select_atlantic_latbnds(ds):
  
     """
     # basin = 0 ->  sector = atlantic_arctic_ocean
-    ds = ds.isel(basin=0)
-    amoc34 = ds.sel(lat=-34)
+    ds = ds.isel(basin=0)["mmflxd"]
+    
     amoc26 = ds.sel(lat=26)
     amoc45 = ds.sel(lat=45)
+    amoc20_60 = ds.sel(lat=slice(20, 60)).max(dim="lat")
+    if minimal:
+        return zip([amoc26, amoc45, amoc20_60], ["26N", "45N", "max20N_60N"])
+
+    amoc34 = ds.sel(lat=-34)
     amoc60 = ds.sel(lat=60)
     amoc66 = ds.sel(lat=66)
-    amoc20_60 = ds.sel(lat=slice(20, 60)).max(dim="lat")
+
     return zip([amoc34, amoc26, amoc45, amoc20_60, amoc60, amoc66], ["34S","26N", "45N", "max20N_60N", "60N", "66N"])
 
 
@@ -628,8 +633,12 @@ def amoc(ds):
     ds_out : xarray.Dataset with AMOC @ 34S, 26N, 45N, 60N, 66N, and max(20N,60N)
     """
     ds_out = None
+    ds = consistent_naming(ds)
     zipvals = select_atlantic_latbnds(ds)
+    #print(zipvals)
     for da, lat_lim in zipvals:
+        #print(type(da))
+        #print(da)
         da = 1e-9 * da.max(dim="lev")
         da.attrs["long_name"] = "Max Atlantic Ocean Overturning Mass Streamfunction @%s" % lat_lim
         da.attrs["units"] = "Sv"
@@ -644,8 +653,11 @@ def amoc(ds):
         if "basin" in da.coords:
             da.attrs["basin"] = "%s" % da.basin.values
             da = da.drop("basin")
-        da = da.to_dataset(name="amoc_%s" % lat_lim)
+        if not isinstance(da, xr.Dataset):
+            da = da.to_dataset(name="amoc_%s" % lat_lim)
         if isinstance(ds_out, xr.Dataset):
+            #print(ds_out)
+            #print(da)
             ds_out = xr.merge([ds_out, da])
         else:
             ds_out = da

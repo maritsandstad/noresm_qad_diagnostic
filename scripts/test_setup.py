@@ -3,10 +3,11 @@ import sys
 import glob
 
 import numpy as np
-
+import matplotlib as mpl
 sys.path.append(os.path.join(os.path.dirname(__file__), "../", "src"))
 
 from noresm_qad_diagnostic import noresm_qad_diagnostic, ilamb_configurations
+#mpl.rc('font', size=30) # Set default font size to 20
 
 standard_run_dict = {
     "weight" : "/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne30pg3_to_0.5x0.5_nomask_aave_da_c180515.nc",
@@ -108,8 +109,10 @@ if len(glob.glob(f"{run_path}*/hist/*.nc")) < 1:
     print_help_message()
 
 
-ilamb_cfg = ilamb_configurations.IlambConfigurations("ilamb_CLMFATES.cfg")
+ilamb_cfg = ilamb_configurations.IlambConfigurations("ilamb_qad-diags.cfg")
 print(ilamb_cfg.configurations["FATES_VEGC"].obs_limits)
+print(ilamb_cfg.configurations["ppint"].target_bias)
+print(ilamb_cfg.configurations["fgco2"].drift_max)
 #sys.exit(4)
 
 run_dict = read_optional_arguments(sys.argv[2:])
@@ -118,48 +121,7 @@ print(f"All set, setting up to run diagnostics on {run_path} using options:")
 print(run_dict)
 
 test_qad_diag = noresm_qad_diagnostic.NorESMQADD(run_path, run_dict["pamfile"], ilamb_confs=ilamb_cfg)
-#test_qad_diag.make_all_timeseries_plots()
-test_qad_diag.make_all_map_plots()
-sys.exit(4)
-
-diagnostic = XesmfCLMFatesDiagnostics(
-    # "/cluster/projects/nn9560k/mvertens/cases/n1850.ne30_tn14.hybrid_fatessp.202401007",
-    # "/projects/NS9188K/NORESM_INTERIM_TEMP/temp_spinup_out/1850_fates_spinup/",
-    run_path,
-    run_dict["weight"],
-    run_dict["pamfile"],
-    outdir = run_dict["outpath"],
-    region_def="region_def_improved.nc",
-)
-
-print("Standard diagnostics:")
-#print(diagnostic.find_case_year_range())
-
-
 #sys.exit(4)
-diagnostic.make_all_plots_and_tables(ilamb_cfgs = ilamb_cfg)
-
-if not run_dict["compare"] is None:
-    print(f"Comparison diagnostics with {run_dict['compare']}")
-
-    diasgnostic_other = XesmfCLMFatesDiagnostics(
-        # "/cluster/projects/nn9560k/mvertens/cases/n1850.ne30_tn14.hybrid_fatessp.202401007",
-        # "/projects/NS9188K/NORESM_INTERIM_TEMP/temp_spinup_out/1850_fates_spinup/",
-        run_dict['compare'],
-        run_dict["weight"],
-        run_dict["pamfile"],
-    )
-
-    diagnostic.make_combined_changeplots(diasgnostic_other, year_range_in=run_dict["year_range_compare"])
-    if run_dict["compare_seasonal"]:
-        print("Seasons true")
-        for season in range(4):
-            print(f"Comparison statistics with {season}")
-            diagnostic.make_combined_changeplots(diasgnostic_other, season=season, year_range_in=run_dict["year_range_compare"])
-    
-print(diagnostic.var_pams)
-if diagnostic.var_pams["OBSERVATION_COMPARISON"] is not None:
-    print("Doing observational comparisons")
-    diagnostic.make_obs_comparisonplots(ilamb_cfg)
-
-print(f"Done, output should be in {run_dict['outpath']}")
+test_qad_diag.make_all_timeseries_plots()
+#test_qad_diag.make_all_map_plots()
+sys.exit(4)

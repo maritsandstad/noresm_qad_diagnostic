@@ -45,7 +45,6 @@ class NorESMFullModel:
 
     def _set_components(self, pamfile):
         self.components = {}
-        vars_missing = {}
         if pamfile is None:
             pams = DEFAULT_PAMS
         elif isinstance(pamfile, dict):

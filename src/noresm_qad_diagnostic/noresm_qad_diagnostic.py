@@ -3,6 +3,7 @@ import numpy as np
 import xarray as xr
 
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 import os, sys, glob
 
@@ -14,7 +15,7 @@ warnings.filterwarnings("ignore")
 import cartopy.crs as ccrs
 
 from .noresm_full_model import NorESMFullModel
-from .plotting_methods import make_generic_regridder, regrid_se_data, make_bias_plot
+from .plotting_methods import make_bias_plot, make_bias_plot_latixy_longxy
 from .infrastructure_help_functions import setup_nested_folder_structure_from_dict, read_pam_file, make_monthly_taxis_from_years#, clean_empty_folders_in_tree
 from  .misc_help_functions import get_unit_conversion_and_new_label, make_regridding_target_from_weightfile, get_unit_conversion_from_string, do_light_unit_string_conversion
 
@@ -22,6 +23,8 @@ MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 
 SEASONS = ["DJF", "MAM", "JJA", "SON"]
 
+DRIFT_YRS = 30
+#mpl.rc('font', size=30) # Set default font size to 20
 
 class NorESMQADD:
     """
@@ -67,7 +70,7 @@ class NorESMQADD:
         subfolder_structure = {
             f"{self.main_run.casename}": {
                 "trends_drift": None, 
-                "clim_maps": ["ANN", "DJF", "MAM", "JJA", "SON"], 
+                "clim_maps": None, 
                 "perf_metrics": None, 
             }
         }
@@ -92,30 +95,37 @@ class NorESMQADD:
             title = f"Last 20 year climatology comparison {self.casename}"
         print(self.varpams["OBS_COMPARE_MAPS"])
         fig = plt.figure(constrained_layout=True, figsize=(30,40))
-        fig.suptitle(title)
+        fig.suptitle(title, fontsize=20)
         subfigs = fig.subfigures(nrows=len(self.varpams['OBS_COMPARE_MAPS'].keys()), ncols=1)    
         for subfignum, variable in enumerate(self.varpams['OBS_COMPARE_MAPS'].keys()):
             if len(self.varpams['OBS_COMPARE_MAPS'].keys()) == 1:
                 subfignow = subfigs
             else:
-                subfignow = subfigs[subfignum]
+                subfignow = subfigs[subfignum] 
             self.make_single_comparison_map(variable, subfignow)
         fig.savefig(f"{self.outdir}/clim_maps/climatology_maps_{self.casename}.png")
 
+    def make_comparison_map_no_comparison_data(self, variable, subfig_handle):
+        #Put in single map-plot
+        print(f"No observational data for {variable}")
+        axs = subfig_handle.subplots(
+            nrows=1, 
+            ncols=1,            
+            subplot_kw={"projection": ccrs.Robinson()},
+            )
+        plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist_in=variable)
+        print(plot_data)
+        if variable.startswith("aice"):
+            make_bias_plot_latixy_longxy(plot_data, plot_data["TLAT"], plot_data["TLON"], self.casename, ax=axs)
+        make_bias_plot(plot_data, self.casename, ax = axs)
 
     def make_single_comparison_map(self, variable, subfig_handle):
         print(variable)
-        subfig_handle.suptitle(f"20 year climatological comparison for {variable}")
+        subfig_handle.suptitle(f"20 year climatological comparison for {variable}", fontsize=20)
         if len(self.varpams['OBS_COMPARE_MAPS'][variable]) == 1 and self.varpams['OBS_COMPARE_MAPS'][variable][0] == 'False':
-            #Put in single map-plot
-            print(f"No observational data for {variable}")
-            axs = subfig_handle.subplots(
-                nrows=1, 
-                ncols=1,            
-                subplot_kw={"projection": ccrs.Robinson()},
-                )
-            plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist=variable)
-            make_bias_plot(plot_data, self.casename, ax = axs)
+            self.make_comparison_map_no_comparison_data(variable, subfig_handle)
+        elif self.varpams['OBS_COMPARE_MAPS'][variable][0] not in self.ilamb_confs.configurations[variable].obsdatasets.keys():
+            self.make_comparison_map_no_comparison_data(variable, subfig_handle)
         else:
             # Put in map + map + changeplot
             print(self.varpams['OBS_COMPARE_MAPS'][variable])
@@ -128,7 +138,7 @@ class NorESMQADD:
             # Make this work...
             #unit_conversion_factor, unit_to_print = get_unit_conversion_from_string(self.ilamb_confs.get_variable_plot_unit(variable), self.unit_dict[variable])
             varname_ilamb =  self.ilamb_confs.get_vaname_in_ilamb_cfgs(variable)
-            plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist=variable)
+            plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist_in=variable)
             make_bias_plot(
                 plot_data,
                 f"{self.casename}",
@@ -137,7 +147,7 @@ class NorESMQADD:
                 ymaxv = ymaxv,
                 xlabel = f"{variable}" #[{unit_to_print}]"
                 )
-            plot_data_obs = self.ilamb_confs.get_data_for_map_plot(varname_ilamb, self.main_run.components[self.var_to_comp_map[variable]].regrid_target)
+            plot_data_obs = self.ilamb_confs.get_data_for_map_plot(varname_ilamb, self.varpams['OBS_COMPARE_MAPS'][variable][0], self.main_run.components[self.var_to_comp_map[variable]].regrid_target)
             make_bias_plot(
                 plot_data_obs,
                 f"{self.varpams['OBS_COMPARE_MAPS'][variable][0]}",
@@ -155,9 +165,9 @@ class NorESMQADD:
                 xlabel = f"{variable}",#[{unit_to_print}]"
                 cmap = "RdYlBu_r"
                 )
-            axs[0].set_title(self.casename)
-            axs[1].set_title(self.varpams['OBS_COMPARE_MAPS'][variable][0])
-            axs[2].set_title("bias")
+            axs[0].set_title(self.casename, fontsize=20)
+            axs[1].set_title(self.varpams['OBS_COMPARE_MAPS'][variable][0], fontsize=20)
+            axs[2].set_title("bias", fontsize=20)
 
     def make_all_timeseries_plots(self):
         self.setup_ts_figs_and_axs()
@@ -165,21 +175,22 @@ class NorESMQADD:
     def setup_ts_figs_and_axs(self, title = None):
         if title is None:
             title = f"Averaged trends {self.casename}"
-        fig = plt.figure(constrained_layout=True, figsize=(30,30))
-        fig.suptitle(title)
+        fig = plt.figure(constrained_layout=True, figsize=(40,40))
+        fig.suptitle(title, fontsize=20)
         subfigs = fig.subfigures(nrows=len(self.varpams['VAR_LIST_MAIN'].keys()), ncols=1)
-
+        print(self.varpams['VAR_LIST_MAIN'])
+        #sys.exit(4)
         for subfignum, (name, items) in enumerate(self.varpams['VAR_LIST_MAIN'].items()):
             if len(self.varpams['VAR_LIST_MAIN'].keys()) == 1:
                 subfignow = subfigs
             else:
                 subfignow = subfigs[subfignum]
-            subfignow.suptitle(f"Trends from {name}")
+            subfignow.suptitle(f"Trends from {name}", fontsize=20)
             rownums = len(items)//5 + 1
             colnums = np.min((5, len(items)))
             axs = subfignow.subplots(nrows=rownums, ncols=colnums)
             tyaxis = self.main_run.components[name].get_year_range()
-            outd_year = self.main_run.components[name].get_area_mean_ts_data(varlist=items)
+            outd_year = self.main_run.components[name].get_area_mean_ts_data()
             for subnum, item in enumerate(items):
                 if colnums == 1:
                     axnow = axs
@@ -192,13 +203,28 @@ class NorESMQADD:
                 # Monthly:
                 #axnow.plot(taxis, outd[item].values.flatten())
                 # Yearly
-                if len(outd_year[item].shape) > 0:
-                    axnow.plot(tyaxis, outd_year[item].values.flatten())
+                if item == "AMOC":
+                    for data_var in outd_year.data_vars:
+                        # Could potentially bring in additional amoc lines here
+                        if data_var.startswith("amoc_26N"):
+                            axnow.plot(tyaxis, outd_year[data_var].values)
+                        outd_ts = outd_year["amoc_26N"].values
+                    #axnow.legend(fontsize = 10)
                 else:
-                    axnow.plot(tyaxis, outd_year[item])
-                axnow.set_title(f"{item} ({self.main_run.components[name].unit_dict[item]})")
-                axnow.set_xlabel("Year")
-                axnow.set_ylabel(f"{item} ({self.main_run.components[name].unit_dict[item]})")
+                    if len(outd_year[item].shape) > 0:
+                        outd_ts = outd_year[item].values.flatten()
+                    else:
+                        outd_ts = outd_year[item].values
+                    # Add multiple lines for amoc..., how to...
+                    axnow.plot(tyaxis, outd_ts)
+                axnow.set_title(f"{item} ({self.main_run.components[name].get_variable_unit(item)})", fontsize=20)
+                axnow.set_xlabel("Year", fontsize=20)
+                axnow.set_ylabel(f"{item} ({self.main_run.components[name].get_variable_unit(item)})", fontsize=20)
+                print(len(outd_ts))
+                print(len(tyaxis))
+                print(outd_ts)
+                self.ilamb_confs.add_target_and_drift(item, axnow, outd_ts[np.max((0, len(tyaxis)-DRIFT_YRS)):], tyaxis)
+
 
         fig.savefig(f"{self.outdir}/trends_drift/trend_overview_{self.casename}_yearly.png")
 

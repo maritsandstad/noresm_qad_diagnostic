@@ -59,16 +59,22 @@ def make_bias_plot(bias,figname,yminv=None,ymaxv=None,cmap = 'viridis',ax = None
         fignamefull=figname+'.png'
         fig.savefig(fignamefull,bbox_inches='tight')
 
-def make_bias_plot_latixy_longxy(bias,latixy, longxy, figname,yminv,ymaxv,cmap = 'RdYlBu_r'):
+def make_bias_plot_latixy_longxy(bias,latixy, longxy, figname, yminv=None,ymaxv=None,ax= None, cmap = 'RdYlBu_r'):
+    savefig = False
     # Use viridis for absolute maps
-    fig = plt.figure(figsize=(10, 5))
-    # Create a GeoAxes with the PlateCarree projection
-    #ax = plt.axes(projection=ccrs.PlateCarree())
-    
-    ax = plt.axes(projection=ccrs.Robinson())
+    if ax is None:
+        fig = plt.figure(figsize=(10, 5))
+        # Create a GeoAxes with the PlateCarree projection
+        #ax = plt.axes(projection=ccrs.PlateCarree())
+        
+        ax = plt.axes(projection=ccrs.Robinson())
+        savefig = True
     
     # Plot the data on the map
-    filled_c = ax.contourf(longxy, latixy, bias, cmap=cmap, transform=ccrs.PlateCarree(), vmin=yminv, vmax=ymaxv)
+    if ymaxv is None or yminv is None:
+        filled_c = ax.contourf(longxy, latixy, bias, cmap=cmap, transform=ccrs.PlateCarree())
+    else:
+        filled_c = ax.contourf(longxy, latixy, bias, cmap=cmap, transform=ccrs.PlateCarree(), vmin=yminv, vmax=ymaxv)
     ax.set_title('')
     ax.set_title(figname.split("/")[-1])
     ax.set_xlabel('')
@@ -76,11 +82,13 @@ def make_bias_plot_latixy_longxy(bias,latixy, longxy, figname,yminv,ymaxv,cmap =
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.coastlines()
-    fig.colorbar(filled_c, vmin=yminv, vmax=ymaxv)
-    
-    # Show the plot
-    fignamefull=figname+'.png'
-    plt.savefig(fignamefull,bbox_inches='tight')
+
+    if savefig:
+        fig.colorbar(filled_c, vmin=yminv, vmax=ymaxv)
+        
+        # Show the plot
+        fignamefull=figname+'.png'
+        plt.savefig(fignamefull,bbox_inches='tight')
 
 def make_generic_regridder(weightfile, filename_exmp):
     exmp_dataset = xr.open_dataset(filename_exmp)

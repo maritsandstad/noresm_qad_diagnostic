@@ -25,10 +25,18 @@ TIME_UNITS_IN_S = {
     "y" : 365*3600*24
 }
 
+MOLAR_MASSES= {
+    "C" : 12.011,
+    "N" : 14.0067,
+    "Si" : 28.0855,
+}
+
 def simple_conversion_numbers(base_unit_in, base_unit_out):
+    #print(base_unit_in)
+    #print(base_unit_out)
     if base_unit_in in TIME_UNITS_IN_S and base_unit_out in TIME_UNITS_IN_S:
         return TIME_UNITS_IN_S[base_unit_in] / TIME_UNITS_IN_S [base_unit_out]
-    print(f"Basic underlaying unit is not the same ({base_unit_to} vs {base_unit_from}), currently unimplemented")
+    print(f"Basic underlaying unit is not the same ({base_unit_in} vs {base_unit_out}), currently unimplemented")
     return 1
 
 def do_light_unit_string_conversion(unit):
@@ -39,8 +47,12 @@ def do_light_unit_string_conversion(unit):
         if not unit_nom_denom[1][-1].isdigit():
             unit_nom_denom[1] = f"{unit_nom_denom[1]}-1"
         unit = " ".join(unit_nom_denom)
+    if "kg C" in unit:
+        unit = unit.replace("kg C", "kgC")
     if "gC" in unit:
         unit = unit.replace("gC", "g")
+    if "mol " in unit:
+        unit = unit.replace("mol ", "mol")
     return unit
 
 
@@ -66,6 +78,8 @@ def unit_convert_single_unit(unit_from, unit_to):
     else:
         just_string_to = unit_to
         just_string_from = unit_from
+    if just_string_from.startswith("mol") and just_string_to.endswith("g"):
+        return MOLAR_MASSES[just_string_from[3:]] * 10**(-UNIT_PREFIXES[just_string_to[0]])
     base_unit_to = just_string_to[-1]
     base_unit_from = just_string_from[-1]
     multiplicator = 1
@@ -82,7 +96,11 @@ def unit_convert_single_unit(unit_from, unit_to):
     return (multiplicator*10**((from_prefix-to_prefix)))**factor
 
 
-def get_unit_conversion_from_string(obs_unit, mod_unit):
+def get_unit_conversion_from_string(obs_unit, mod_unit, areasummed = False):
+    if areasummed:
+        mod_unit = mod_unit.replace("m-2", "")
+    obs_unit = do_light_unit_string_conversion(obs_unit)
+    mod_unit = do_light_unit_string_conversion(mod_unit)
     if obs_unit is None or mod_unit is None:
         print("Stopped on the None")
         return 1, mod_unit
@@ -108,6 +126,8 @@ def make_regridding_target_from_weightfile(weight_file, filename_exmp):
     if "lon" in exmp_dataset.dims and "lat" in exmp_dataset.dims:
         is_weight_file = False
     if is_weight_file:
+        if weight_file is None:
+            return None
         weights = xr.open_dataset(weight_file)
         out_shape = weights.dst_grid_dims.load().data.tolist()[::-1]
         

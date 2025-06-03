@@ -1,5 +1,5 @@
 
-import os
+import os, sys
 
 import numpy as np
 import xarray as xr
@@ -15,6 +15,8 @@ class IlambCompVariable:
         self.obsdatasets = None
         self.plot_unit = None
         self.obs_limits = [None, None, None, None]
+        self.drift_max = None
+        self.target_bias = [None, None, None]
     
     def set_alt_names(self, alt_name_string):
         alt_names = []
@@ -41,12 +43,27 @@ class IlambCompVariable:
         else:
             tab_unit = self.plot_unit
             self.plot_unit = plot_unit
-            self.calc_obs_conv_factor(oname, plot_unit, tab_unit)
-        
+            self.calc_obs_conv_factor(oname, plot_unit, tab_unit)    
 
     def set_obs_limits(self, lim_string):
         obs_limits = np.array(lim_string.split(",")).astype(float)
         self.obs_limits = np.append(obs_limits, -obs_limits[-1])
+
+    def set_drift_max(self, drift_string):
+        self.drift_max = float(drift_string)
+    
+    def set_target_bias(self, target_str):
+        target_str_arr = np.array(target_str.split(",")).astype(float)
+        if len(target_str_arr) == 0:
+            self.target_bias[0] = target_str_arr[0]
+        elif len(target_str_arr) == 2:
+            self.target_bias = np.array(target_str_arr)
+            self.target_bias = np.append(self.target_bias, -float(target_str_arr[1]))
+        elif len(target_str_arr) == 3:
+            self.target_bias = np.array(target_str_arr).astype(float)
+
+
+    
         
 
 def read_ilamb_configurations(cfg_file):
@@ -66,6 +83,10 @@ def read_ilamb_configurations(cfg_file):
                 curr_var.set_alt_names(line.split('"')[-2].strip())
             if line.startswith("limits"):
                 curr_var.set_obs_limits(line.split("=")[-1].strip())
+            if line.startswith("drift_max"):
+                curr_var.set_drift_max(line.split("=")[-1].strip())
+            if line.startswith("target_bias"):
+                curr_var.set_target_bias(line.split("=")[-1].strip())
             if line.startswith("source"):
                 curr_oname = curr_var.add_obsdataset(line.split('"')[-2].strip())
             if line.startswith("table_unit"):
@@ -234,12 +255,30 @@ class IlambConfigurations:
                     weighted_data = crop.weighted(weights)
                     ts_data = weighted_data.mean(["lon", "lat"])
                     axnow.plot(range(12), ts_data, label=oname, ls='--')
-                    axnow.set_title(f"{variable} vs {', '.join(obs_comp_dict[altname])}")
+                    axnow.set_title(f"{variable} vs {', '.join(obs_comp_dict[altname])}", fontsize=20)
                     if yminv is not None and "pr" in self.configurations[altname].alt_names:
                         axnow.set_ylim(yminv, ymaxv)
             
+    def add_target_and_drift(self, variable, axnow, outd_ts, tyaxis):
+        varname = self.get_vaname_in_ilamb_cfgs(variable)
+        if varname is None:
+            return
+        if self.configurations[varname].drift_max is not None:
+            m, b = np.polyfit(tyaxis[len(tyaxis)-len(outd_ts):], outd_ts, deg=1)
+            if abs(m) > self.configurations[varname].drift_max:
+                colour = "r"
+            else:
+                colour = "g"
+            axnow.axline(xy1=(0, b), slope=m, label=f'$drift = {m*100:.1f}$', color=colour)
+            axnow.legend(loc = 'lower left', fontsize=10)
+            
+        if self.configurations[varname].target_bias[0] is not None:
+            axnow.hlines(self.configurations[varname].target_bias[0],tyaxis[0], tyaxis[-1], color="y", ls = '--')
+        if self.configurations[varname].target_bias[1] is not None:
+            axnow.hlines(self.configurations[varname].target_bias[0] + self.configurations[varname].target_bias[1],tyaxis[0], tyaxis[-1], color="y", ls = '--')
+            axnow.hlines(self.configurations[varname].target_bias[0] + self.configurations[varname].target_bias[2],tyaxis[0], tyaxis[-1], color="y", ls = '--')
+        
 
-    
     def print_var_dat(self, variable):
         print(self.configurations.keys())
         print(f"{self.configurations[variable].name} has alt_names: {self.configurations[variable].alt_names}, and plot unit: {self.configurations[variable].plot_unit}")
