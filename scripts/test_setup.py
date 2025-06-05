@@ -120,7 +120,7 @@ run_dict = read_optional_arguments(sys.argv[2:])
 print(f"All set, setting up to run diagnostics on {run_path} using options:")
 print(run_dict)
 
-test_qad_diag = noresm_qad_diagnostic.NorESMQADD(run_path, run_dict["pamfile"], ilamb_confs=ilamb_cfg)
+test_qad_diag = noresm_qad_diagnostic.NorESMQADD(run_path, run_dict["pamfile"], ilamb_confs=ilamb_cfg, outdir=run_dict["outpath"])
 #sys.exit(4)
 test_qad_diag.make_all_timeseries_plots()
 #test_qad_diag.make_all_map_plots()
