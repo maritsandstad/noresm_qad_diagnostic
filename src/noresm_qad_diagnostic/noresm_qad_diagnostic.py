@@ -40,11 +40,15 @@ class NorESMQADD:
             self.casename = self.main_run.casename
         else:
             self.casename = casename
+        self.compare_runs = None
         # Probably loop over setting up these:
         self.comp_run_list = comp_runs
         self.ilamb_confs = ilamb_confs
         # Update method to do this: 
         self.varpams = read_pam_file(pamfile)
+
+        print(self.varpams)
+        #sys.exit(4)
         self.cut_pamfile_to_existing()
         if outdir is None:
             outdir = "figs/"
@@ -172,6 +176,19 @@ class NorESMQADD:
     def make_all_timeseries_plots(self):
         self.setup_ts_figs_and_axs()
 
+    def setup_compare_runs(self):
+        if "COMPARE_RUNS" not in self.varpams:
+            return
+        for root_folder, casenames in self.varpams["COMPARE_RUNS"].items():
+             for casename in casenames:
+                path = f"{root_folder}/{casename}"
+                if self.compare_runs is None:
+                     self.compare_runs = {
+                        path : NorESMFullModel(path, pamfile=self.varpams)
+                     }
+                elif path not in self.compare_runs:
+                    self.compare_runs[path] = NorESMFullModel(path, pamfile=self.varpams)
+
     def setup_ts_figs_and_axs(self, title = None):
         if title is None:
             title = f"Averaged trends {self.casename}"
@@ -189,6 +206,16 @@ class NorESMQADD:
             rownums = len(items)//5 + 1
             colnums = np.min((5, len(items)))
             axs = subfignow.subplots(nrows=rownums, ncols=colnums)
+            self.add_component_data_to_ts_ax(axs, items, name)
+            if "COMPARE_RUNS" in self.varpams:
+                if self.compare_runs is None:
+                    self.setup_compare_runs()
+                for run_paths, compare_run in self.compare_runs.items():
+                    self.add_component_data_to_ts_ax(axs, items, name, run_id=compare_run)
+                
+
+            # Add looping over compare-runs
+            """
             tyaxis = self.main_run.components[name].get_year_range()
             outd_year = self.main_run.components[name].get_area_mean_ts_data()
             for subnum, item in enumerate(items):
@@ -220,16 +247,57 @@ class NorESMQADD:
                 axnow.set_title(f"{item} ({self.main_run.components[name].get_variable_unit(item)})", fontsize=20)
                 axnow.set_xlabel("Year", fontsize=20)
                 axnow.set_ylabel(f"{item} ({self.main_run.components[name].get_variable_unit(item)})", fontsize=20)
-                print(len(outd_ts))
-                print(len(tyaxis))
-                print(outd_ts)
-                self.ilamb_confs.add_target_and_drift(item, axnow, outd_ts[np.max((0, len(tyaxis)-DRIFT_YRS)):], tyaxis)
+                """
 
 
         fig.savefig(f"{self.outdir}/trends_drift/trend_overview_{self.casename}_yearly.png")
 
-    def add_to_ts_ax(self, vari_info):
-        pass
+    def add_component_data_to_ts_ax(self, axs, items, name, run_id = None):
+        main_run = False
+        alpha = 0.7
+        color = "tab:gray"
+        if run_id == None:
+            run_id = self.main_run
+            main_run = True
+            alpha = 1
+            color = "k"
+        tyaxis = run_id.components[name].get_year_range()
+        outd_year = run_id.components[name].get_area_mean_ts_data()
+        rownums = len(items)//5 + 1
+        colnums = np.min((5, len(items)))
+        for subnum, item in enumerate(items):
+            if colnums == 1:
+                axnow = axs
+            elif rownums == 1:
+                axnow = axs[subnum]
+                print(f"{item}, {subnum}")
+            else:
+                axnow = axs[subnum//5, subnum%5]
+                print(f"{item}, {subnum}, {subnum//5}, {subnum%5}")
+            # Monthly:
+            #axnow.plot(taxis, outd[item].values.flatten())
+            # Yearly
+            if item == "AMOC":
+                for data_var in outd_year.data_vars:
+                    # Could potentially bring in additional amoc lines here
+                    if data_var.startswith("amoc_26N"):
+                        axnow.plot(tyaxis, outd_year[data_var].values, alpha = alpha, color=color)
+                    outd_ts = outd_year["amoc_26N"].values
+                #axnow.legend(fontsize = 10)
+            else:
+                if item not in outd_year.data_vars:
+                    continue
+                if len(outd_year[item].shape) > 0:
+                    outd_ts = outd_year[item].values.flatten()
+                else:
+                    outd_ts = outd_year[item].values
+                # Add multiple lines for amoc..., how to...
+                axnow.plot(tyaxis, outd_ts, alpha = alpha, color=color)
+            if main_run:
+                axnow.set_title(f"{item} ({run_id.components[name].get_variable_unit(item)})", fontsize=20)
+                axnow.set_xlabel("Year", fontsize=20)
+                axnow.set_ylabel(f"{item} ({run_id.components[name].get_variable_unit(item)})", fontsize=20)
+                self.ilamb_confs.add_target_and_drift(item, axnow, outd_ts[np.max((0, len(tyaxis)-DRIFT_YRS)):], tyaxis)
 
     def check_drift_criteria(self):
         pass
