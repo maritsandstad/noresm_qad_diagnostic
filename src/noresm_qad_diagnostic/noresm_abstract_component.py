@@ -2,7 +2,7 @@ import numpy as np
 
 import xarray as xr
 
-import os, glob, sys
+import os, glob, sys, stat
 
 # import netCDF4 as nc4
 import warnings
@@ -331,6 +331,7 @@ class NorESMAbstractComponent(ABC):
         comp_name = self.get_compname()
         fpath = f"{ts_out_top}{self.casename}/{comp_name}/ts_{comp_name}_{self.casename}_{year_range[0]:04d}-{year_range[-1]:04d}.nc"
         outd_year.to_netcdf(fpath)
+        os.chmod(fpath, stat.S_IRWXG)
         if len(self.ts_file_list) > 0:
             for file in self.ts_file_list:
                 ys = file[-12:-8]

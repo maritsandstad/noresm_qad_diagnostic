@@ -1,5 +1,6 @@
 import os, sys, glob
 import json
+import stat
 
 def setup_folder_if_not_exists(path):
     """
@@ -14,6 +15,7 @@ def setup_folder_if_not_exists(path):
     # TODO: Throw error 
     if not os.path.exists(path):
         os.mkdir(path)
+        os.chmod(path, stat.S_IRWXG)
 
 def setup_nested_folder_structure_from_dict(root, subfolder_dict):
     setup_folder_if_not_exists(root)  

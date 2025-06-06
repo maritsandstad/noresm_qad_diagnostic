@@ -3,7 +3,8 @@ import numpy as np
 import xarray as xr
 
 import matplotlib.pyplot as plt
-import matplotlib as mpl
+import matplotlib.colors as mcolors
+from matplotlib.lines import Line2D
 
 import os, sys, glob
 
@@ -24,6 +25,8 @@ MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 SEASONS = ["DJF", "MAM", "JJA", "SON"]
 
 DRIFT_YRS = 30
+
+COLOR_LIST = list(mcolors.XKCD_COLORS.keys())
 #mpl.rc('font', size=30) # Set default font size to 20
 
 class NorESMQADD:
@@ -184,10 +187,10 @@ class NorESMQADD:
                 path = f"{root_folder}/{casename}"
                 if self.compare_runs is None:
                      self.compare_runs = {
-                        path : NorESMFullModel(path, pamfile=self.varpams)
+                        path : [NorESMFullModel(path, pamfile=self.varpams), mcolors.XKCD_COLORS[COLOR_LIST[0]]]
                      }
                 elif path not in self.compare_runs:
-                    self.compare_runs[path] = NorESMFullModel(path, pamfile=self.varpams)
+                    self.compare_runs[path] = [NorESMFullModel(path, pamfile=self.varpams), mcolors.XKCD_COLORS[COLOR_LIST[len(self.compare_runs.keys())]]]
 
     def setup_ts_figs_and_axs(self, title = None):
         if title is None:
@@ -202,16 +205,18 @@ class NorESMQADD:
                 subfignow = subfigs
             else:
                 subfignow = subfigs[subfignum]
-            subfignow.suptitle(f"Trends from {name}", fontsize=20)
+            subfignow.suptitle(f"Trends from {name}", fontsize=24)
             rownums = len(items)//5 + 1
             colnums = np.min((5, len(items)))
+            if name == "ice":
+                colnums = colnums +1
             axs = subfignow.subplots(nrows=rownums, ncols=colnums)
             self.add_component_data_to_ts_ax(axs, items, name)
             if "COMPARE_RUNS" in self.varpams:
                 if self.compare_runs is None:
                     self.setup_compare_runs()
                 for run_paths, compare_run in self.compare_runs.items():
-                    self.add_component_data_to_ts_ax(axs, items, name, run_id=compare_run)
+                    self.add_component_data_to_ts_ax(axs, items, name, run_info=compare_run)
                 
 
             # Add looping over compare-runs
@@ -248,19 +253,34 @@ class NorESMQADD:
                 axnow.set_xlabel("Year", fontsize=20)
                 axnow.set_ylabel(f"{item} ({self.main_run.components[name].get_variable_unit(item)})", fontsize=20)
                 """
-
-
+            if name == "ice":
+                self.add_labels_to_extra_plot(axs[-1])
         fig.savefig(f"{self.outdir}/trends_drift/trend_overview_{self.casename}_yearly.png")
 
-    def add_component_data_to_ts_ax(self, axs, items, name, run_id = None):
+    def add_labels_to_extra_plot(self, ax):
+        compare_cases = list(self.compare_runs.keys())
+        custom_lines = [Line2D([0], [0], color=self.compare_runs[key][1], lw=8, alpha = 0.7) for key in compare_cases]
+        custom_lines.append(Line2D([0], [0], color="r", lw=8,))
+        custom_lines.append(Line2D([0], [0], color="g", lw=8,))
+        custom_lines.append(Line2D([0], [0], color="y", lw=8))
+        legend_text = [path.split("/")[-1] for path in compare_cases]
+        legend_text.append("Drift - too strong")
+        legend_text.append("Drift - acceptable")
+        legend_text.append("Target range")
+        ax.legend(custom_lines, legend_text, fontsize = 20, loc="center")
+
+
+    def add_component_data_to_ts_ax(self, axs, items, name, run_info = None):
         main_run = False
         alpha = 0.7
-        color = "tab:gray"
-        if run_id == None:
+        if run_info == None:
             run_id = self.main_run
             main_run = True
             alpha = 1
             color = "k"
+        else:
+            run_id = run_info[0]
+            color = run_info[1]
         tyaxis = run_id.components[name].get_year_range()
         outd_year = run_id.components[name].get_area_mean_ts_data()
         rownums = len(items)//5 + 1
@@ -294,9 +314,11 @@ class NorESMQADD:
                 # Add multiple lines for amoc..., how to...
                 axnow.plot(tyaxis, outd_ts, alpha = alpha, color=color)
             if main_run:
-                axnow.set_title(f"{item} ({run_id.components[name].get_variable_unit(item)})", fontsize=20)
+                axnow.set_title(f"{item} ({run_id.components[name].get_variable_unit(item)})", fontsize=20, fontweight='bold')
                 axnow.set_xlabel("Year", fontsize=20)
                 axnow.set_ylabel(f"{item} ({run_id.components[name].get_variable_unit(item)})", fontsize=20)
+                axnow.tick_params(axis='both', which='major', labelsize=14)
+                axnow.tick_params(axis='both', which='minor', labelsize=10)
                 self.ilamb_confs.add_target_and_drift(item, axnow, outd_ts[np.max((0, len(tyaxis)-DRIFT_YRS)):], tyaxis)
 
     def check_drift_criteria(self):

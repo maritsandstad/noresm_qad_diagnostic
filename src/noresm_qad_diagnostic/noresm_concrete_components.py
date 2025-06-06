@@ -231,7 +231,7 @@ class NorESMOcnbgcComponent(NorESMOcnComponent):
     def make_spatial_means_do_unit_fixes_etc(self, weighted_data, spatial_coords):
         mean_ts = weighted_data.sum(spatial_coords)
         if "fgco2" in self.varpams:
-            mean_ts["fgco2"] = mean_ts["co2fxu"] - mean_ts["co2fxd"]
+            mean_ts["fgco2"] = mean_ts["co2fxd"] - mean_ts["co2fxu"]
         for variable in mean_ts.data_vars:
             if variable in self.expected_unit.keys():
                 conv_factor, new_unit =  get_unit_conversion_from_string(self.expected_unit[variable], self.unit_dict[variable], areasummed=True)
