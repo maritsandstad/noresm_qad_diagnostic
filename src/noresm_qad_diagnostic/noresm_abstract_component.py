@@ -123,7 +123,7 @@ class NorESMAbstractComponent(ABC):
         return self.filelist[0].split("/")[-3]
     
     def get_ts_filelist(self):
-        ts_out_top = "/datalake/NS9560K/diagnostics/noresm_qad_data/ts_precalc_data/"
+        ts_out_top = "/nird/datalake/NS9560K/diagnostics/noresm_qad_data/ts_precalc_data/"
         comp_name = self.get_compname()
         if not os.path.exists(f"{ts_out_top}{self.casename}"):
             setup_nested_folder_structure_from_dict(ts_out_top, {f"{self.casename}":comp_name})
@@ -327,7 +327,7 @@ class NorESMAbstractComponent(ABC):
         return outd_year
     
     def write_ts_data_to_netcdf(self, outd_year, year_range):
-        ts_out_top = "/datalake/NS9560K/diagnostics/noresm_qad_data/ts_precalc_data/"
+        ts_out_top = "/nird/datalake/NS9560K/diagnostics/noresm_qad_data/ts_precalc_data/"
         comp_name = self.get_compname()
         fpath = f"{ts_out_top}{self.casename}/{comp_name}/ts_{comp_name}_{self.casename}_{year_range[0]:04d}-{year_range[-1]:04d}.nc"
         outd_year.to_netcdf(fpath)
