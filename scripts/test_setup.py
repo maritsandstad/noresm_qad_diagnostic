@@ -10,15 +10,15 @@ from noresm_qad_diagnostic import noresm_qad_diagnostic, ilamb_configurations
 #mpl.rc('font', size=30) # Set default font size to 20
 
 standard_run_dict = {
-    "weight" : "/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne30pg3_to_0.5x0.5_nomask_aave_da_c180515.nc",
+    "weight" : "/nird/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne30pg3_to_0.5x0.5_nomask_aave_da_c180515.nc",
     "outpath" : "figs/",
     "pamfile" : f"{os.path.dirname(__file__)}/pam_test.json",
     "compare": None,
-    "year_range_compare": None, 
+    "year_range_compare": None,
 }
 
 run_dict_optional_arguments = {
-    "compare_seasonal": False    
+    "compare_seasonal": False
 }
 
 def print_help_message():
@@ -54,8 +54,8 @@ def read_optional_arguments(arguments):
     run_dict = standard_run_dict.copy()
     print(arguments)
     for arg in arguments:
-        arg_key = arg.split("=")[0] 
-        arg_val = arg.split("=")[-1] 
+        arg_key = arg.split("=")[0]
+        arg_val = arg.split("=")[-1]
         if arg_key in run_dict:
             if not os.path.exists(arg_val):
                 print(f"Invalid path {arg_val} for {arg_key} will be ignored")
