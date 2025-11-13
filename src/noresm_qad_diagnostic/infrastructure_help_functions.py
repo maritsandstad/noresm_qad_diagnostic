@@ -2,6 +2,11 @@ import os, sys, glob, grp
 import json
 import stat
 
+from .setup_loging import get_logger
+
+# Set up logger for this module
+logger = get_logger(__name__)
+
 def setup_folder_if_not_exists(path):
     """
     Create a folder if it does not exist already
@@ -12,14 +17,14 @@ def setup_folder_if_not_exists(path):
         Path to folder that should be created
 
     """
-    # TODO: Throw error 
+    # TODO: Throw error
     if not os.path.exists(path):
         os.mkdir(path)
         os.chown(path, os.getuid(), grp.getgrnam("ns9560k").gr_gid)
         os.chmod(path, stat.S_IRWXU | stat.S_IRWXG)
 
 def setup_nested_folder_structure_from_dict(root, subfolder_dict):
-    setup_folder_if_not_exists(root)  
+    setup_folder_if_not_exists(root)
     if isinstance(subfolder_dict, dict):
         for key, value in subfolder_dict.items():
             setup_nested_folder_structure_from_dict(f"{root}/{key}", value)
@@ -48,8 +53,7 @@ def read_pam_file(pam_file_path):
         with open(pam_file_path, "r") as jsonfile:
             data = json.load(jsonfile)
     except json.decoder.JSONDecodeError as err:
-        print(err)
-        print(f"{pam_file_path} must be a valid json-file")
+        logger.error(f"{pam_file_path} must be a valid json-file, error decoding: {err}")
         sys.exit(4)
     if not isinstance(data, dict):
         raise ValueError(f"{pam_file_path} must evaluate to dict")
@@ -63,10 +67,10 @@ def read_pam_file(pam_file_path):
         if not isinstance(data[elem], e_type):
             raise TypeError(f"{pam_file_path} element {elem} must be a {e_type}, but is {type(data[elem])}")
     return data
-    
+
 def make_monthly_taxis_from_years(years):
     return [years[0] + tstep/12. for tstep in range(12*len(years))]
-    
+
 def get_spatial_coordinates(spatial_data):
     if "lat" and "lon" in spatial_data.keys():
         return ["lat", "lon"]
@@ -77,4 +81,4 @@ def get_spatial_coordinates(spatial_data):
 
 
 
-  
+

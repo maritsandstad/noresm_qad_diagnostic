@@ -8,13 +8,15 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import xarray as xr
 
+from .setup_loging import get_logger
 from .noresm_abstract_component import NorESMAbstractComponent
 from .plotting_methods import make_generic_regridder, regrid_se_data
 #from .regrid_functions import make_regridder, regrid_file
 from .misc_help_functions import make_regridding_target_from_weightfile, get_unit_conversion_from_string
 from .general_util_functions import amoc
 from .regrid_functions import make_regridder, make_regular_outgrid
-
+# setup logging
+logger = get_logger(__name__)
 
 MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 
@@ -338,7 +340,7 @@ class NorESMIceComponent(NorESMAbstractComponent):
 
     def make_comparison_map_no_comparison_data(self, variable, subfig_handle):
         #Put in single map-plot
-        print(f"No observational data for {variable}")
+        logger.warning(f"No observational data for {variable}")
         axs = subfig_handle.subplots(
             nrows=1,
             ncols=1,

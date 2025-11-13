@@ -4,8 +4,10 @@ import os, sys
 import numpy as np
 import xarray as xr
 
+from .setup_loging import get_logger
 from .plotting_methods import make_regular_grid_regridder, regrid_se_data
 from .misc_help_functions import get_unit_conversion_from_string, get_unit_conversion_and_new_label
+logger = get_logger(__name__)
 
 class IlambCompVariable:
 
@@ -71,8 +73,9 @@ def read_ilamb_configurations(cfg_file):
     curr_var = None
     curr_oname = None
     with open(cfg_file, "r") as cfile:
+        logger.debug(f"Reading ILAMB configuration from file {cfg_file}")
         for line in cfile:
-            #print(line)
+            logger.debug(f"Processing line: {line.strip()}")
             if line.startswith("variable"):
                 if curr_var is not None:
                     ilamb_cfgs[curr_var.name] = curr_var
@@ -150,11 +153,11 @@ class IlambConfigurations:
         start_index = int(np.max(time_len-120, 0)) -1
         outd_gn = dataset[varname].isel(time = slice(start_index, time_len))
         if "missing" in dataset[varname].attrs.keys():
-            print(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
+            logger.warning(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
         outd_gn = outd_gn.where(outd_gn < 1e9)
 
         monthly_means = outd_gn.groupby('time.month').mean('time')
-        print(f"Mean value of {monthly_means.mean().values} and conversion factor {self.configurations[variable].obsdatasets[oname]['conv_factor']}")
+        logger.info(f"Mean value of {monthly_means.mean().values} and conversion factor {self.configurations[variable].obsdatasets[oname]['conv_factor']}")
         return monthly_means * self.configurations[variable].obsdatasets[oname]["conv_factor"]
 
 
@@ -168,7 +171,7 @@ class IlambConfigurations:
         if year_range is not None:
             year_range = None
         if not os.path.exists(self.get_filepath(variable, oname)):
-            print(f"Observation in path {self.get_filepath(variable, oname)} not found, check your configuration files")
+            logger.warning(f"Observation in path {self.get_filepath(variable, oname)} not found, check your configuration files")
             return None
 
         dataset = xr.open_dataset(self.get_filepath(variable, oname))
@@ -186,7 +189,7 @@ class IlambConfigurations:
             start_index = np.max(time_len-10, 0) -1
             outd_gn = dataset[varname].isel(time = slice(start_index, time_len)).mean(dim="time")
         if "missing" in dataset[varname].attrs.keys():
-            print(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
+            logger.warning(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
         outd_gn = outd_gn.where(outd_gn < 1e9)
         regridder = make_regular_grid_regridder(outd_gn, regrid_target)
         output = regridder(outd_gn)
@@ -208,7 +211,7 @@ class IlambConfigurations:
 
     def add_seasonal_obsdata_to_axis(self, figs, varlist, region_df, obs_comp_dict):
         rownum = int(np.ceil(len(varlist) / 2))
-        print(obs_comp_dict)
+        logger.debug(f"adding seasonal obsdata to axis with obs_comp_dict: {obs_comp_dict}")
         #sys.exit(4)
         for varnum, variable in enumerate(varlist):
             #varname = self.get_varname_in_file(variable)
@@ -220,9 +223,9 @@ class IlambConfigurations:
             if altname not in obs_comp_dict:
                 continue
             yminv, ymaxv, diffrange, negdiffrange = self.configurations[altname].obs_limits
-            print(altname)
+            logger.debug(f"Processing altname: {altname}")
             for oname in obs_comp_dict[altname]:
-                print(oname)
+                logger.debug(f"Processing observation name: {oname}")
                 outd = self.get_monthly_mean_timeslice_dataset_for_variable_obs(altname, oname)
                 if altname == "TSA" and outd.mean()> 200:
                     outd = outd - 273.15

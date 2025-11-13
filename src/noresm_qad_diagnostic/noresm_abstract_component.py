@@ -11,15 +11,15 @@ from abc import ABC, abstractmethod
 
 warnings.filterwarnings("ignore")
 
+from .setup_loging import get_logger
 from .plotting_methods import make_generic_regridder, regrid_se_data, make_bias_plot
 from .infrastructure_help_functions import setup_nested_folder_structure_from_dict, get_spatial_coordinates#, clean_empty_folders_in_tree
 from  .misc_help_functions import get_unit_conversion_and_new_label, make_regridding_target_from_weightfile, get_unit_conversion_from_string, do_light_unit_string_conversion
 from .general_util_functions import yearly_avg, DAYS_PER_MONTH
-
+# setup logging
+logger = get_logger(__name__)
 
 #def get_minimal_intersecting_year_range(year_range, year_range_other):
-
-
 
 class NorESMAbstractComponent(ABC):
     """
@@ -34,7 +34,7 @@ class NorESMAbstractComponent(ABC):
         self.filelist = self.get_filelist()
         self.filelist.sort()
         self.varpams = varlist
-        print(self.varpams)
+        logger.debug(self.varpams)
         #print(self.filelist)
         if casename is None:
             self.casename = ".".join(self.filelist[0].split("/")[-1].split(".")[:-4])
@@ -44,19 +44,21 @@ class NorESMAbstractComponent(ABC):
         self.unit_dict = {}
         self.set_composite_variable_dict()
         vars_missing = self.wet_and_cut_varlists()
-        print(self.varpams)
+        logger.debug(self.varpams)
 
         if len(vars_missing):
-            print("Not all requested variables are available in output, ignoring these:")
-            print(vars_missing)
+            logger.warning(
+                "Not all requested variables are available in output, ignoring these:\n"\
+                f"{vars_missing}"
+            )
         self.add_to_unit_dict(self.varpams)
         self.regrid_target = make_regridding_target_from_weightfile(None, self.filelist[0])
-    
+
     def set_composite_variable_dict(self):
         self.composite_variable_dict = {}
 
     def wet_and_cut_varlists(self):
-        # TODO: Make sure all items in SEASONAL is also in var_list_main 
+        # TODO: Make sure all items in SEASONAL is also in var_list_main
         read = xr.open_dataset(self.filelist[0]).keys()
         #lists_check =["VAR_LIST_MAIN", "COMPARE_VARIABLES"]
 
@@ -71,7 +73,7 @@ class NorESMAbstractComponent(ABC):
         self.varpams = list(set(self.varpams) - set(vars_missing))
         self.varpams = list(set(self.varpams).union(set(vars_needed_for_composites)))
 
-        return vars_missing       
+        return vars_missing
         #for list_n in lists_check:
         #    for item in self.varpams[list_n]:
         #        if item not in read:
@@ -97,31 +99,31 @@ class NorESMAbstractComponent(ABC):
     def setup_folder_structure(self, outdir):
         if not os.path.exists(outdir):
             raise ValueError(f"{outdir} must be an existing directory")
-        
+
         subfolder_structure = {
             f"{self.casename}": {
-                "trends": None, 
-                "clim_maps": ["ANN", "DJF", "MAM", "JJA", "SON"], 
-                "seasonal_cycle": None, 
+                "trends": None,
+                "clim_maps": ["ANN", "DJF", "MAM", "JJA", "SON"],
+                "seasonal_cycle": None,
             }
         }
-        
+
         setup_nested_folder_structure_from_dict(outdir, subfolder_structure)
         self.outdir = f"{outdir}/{self.casename}"
-    
+
     def get_file_str_for_regex(self):
         filestr_for_regex = ".".join(self.filelist[0].split(".")[-4:-2])
         return filestr_for_regex
-    
+
     def get_file_str_ending(self):
         fileending = self.filelist[0].split(".")[-2]
         if len(fileending) <= 7:
             return ""
         return fileending[7:]
-    
+
     def get_compname(self):
         return self.filelist[0].split("/")[-3]
-    
+
     def get_ts_filelist(self):
         ts_out_top = "/nird/datalake/NS9560K/diagnostics/noresm_qad_data/ts_precalc_data/"
         comp_name = self.get_compname()
@@ -130,12 +132,12 @@ class NorESMAbstractComponent(ABC):
             return []
         if not os.path.exists(f"{ts_out_top}{self.casename}/{comp_name}"):
             setup_nested_folder_structure_from_dict(f"{ts_out_top}{self.casename}", {f"{comp_name}":None})
-            return []          
+            return []
         flist = glob.glob(f"{ts_out_top}{self.casename}/{comp_name}/ts_{comp_name}_{self.casename}_*.nc")
         flist.sort()
         return flist
 
-        
+
 
     #def clean_out_empty_folders(self):
     #    clean_empty_folders_in_tree(self.outdir)
@@ -153,7 +155,7 @@ class NorESMAbstractComponent(ABC):
 
     def calc_composite_components(self, outd, varlist_in):
         return outd
-    
+
     def fix_varlist_for_composite_components(self, varlist_in):
         """
         Fix varlist from varlist_in
@@ -187,8 +189,8 @@ class NorESMAbstractComponent(ABC):
             Of years to include
         varlist : list
             List of variables to get data for, if not supplied, the objects
-            varlist will be used. If the list includes variables not in the 
-            outputfiles, they will be 
+            varlist will be used. If the list includes variables not in the
+            outputfiles, they will be
         """
         if year_range is None:
             year_range = self.get_year_range(short=True)
@@ -205,11 +207,11 @@ class NorESMAbstractComponent(ABC):
                 else:
                     outd = xr.concat([outd, outd_here], dim="time")
         outd = outd.mean(dim="time")
-        print(varlist)
-        print(varlist_in)
+        logger.debug(varlist)
+        logger.debug(varlist_in)
         outd = self.calc_composite_components(outd, varlist_in)
         return self.regrid(outd)
-    
+
     def get_annual_mean_ts(self, year_range, varlist_in=None):
         """
         Get annual mean data for variables in varlist
@@ -220,15 +222,15 @@ class NorESMAbstractComponent(ABC):
             Of years to include
         varlist : list
             List of variables to get data for, if not supplied, the objects
-            varlist will be used. If the list includes variables not in the 
-            outputfiles, they will be 
+            varlist will be used. If the list includes variables not in the
+            outputfiles, they will be
         """
         outd = None
         factors = [DAYS_PER_MONTH["noleap"][month+1] / np.sum(DAYS_PER_MONTH["noleap"]) for month in range(12)]
         varlist = self.fix_varlist_for_composite_components(varlist_in)
         for year in year_range:
             outd_yr = None
-            for month in range(12):                         
+            for month in range(12):
                 mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}{self.get_file_str_ending()}.nc"
                 outd_here = xr.open_dataset(mfile, engine="netcdf4")[varlist]
                 # print(outd_here)
@@ -240,13 +242,13 @@ class NorESMAbstractComponent(ABC):
             outd_yr = outd_yr.sum(dim="time")
             if not outd:
                 outd = outd_yr
-            else: 
+            else:
                 outd = xr.concat([outd, outd_yr], dim="time")
         return outd
-    
+
     def add_variables_pre_regridding(self, outd, varlist_in = None):
         return outd
-    
+
     def read_from_tsfile(self, year_range):
         # TODO: Assuming for now that we are starting with input from the first year
         if not len(self.ts_file_list) > 0:
@@ -265,14 +267,14 @@ class NorESMAbstractComponent(ABC):
                 year_start = ye
         return year_start, ts_data
 
-    
+
     def get_area_mean_ts_data(self, varlist_in = None, year_range=None, area_def = None):
 
         factors = [DAYS_PER_MONTH["noleap"][month+1] / np.sum(DAYS_PER_MONTH["noleap"]) for month in range(12)]
         varlist = self.fix_varlist_for_composite_components(varlist_in)
-        print(varlist_in)
-        print(varlist)
-        print(self.varpams)
+        logger.debug(varlist_in)
+        logger.debug(varlist)
+        logger.debug(self.varpams)
         if year_range is None:
             year_range = self.get_year_range()
         year_range_start, outd_year = self.read_from_tsfile(year_range)
@@ -305,8 +307,8 @@ class NorESMAbstractComponent(ABC):
                 outd_here = outd_here.sel(
                 lat=slice(area_def["lat_s"], area_def["lat_n"]),
                 lon=slice(area_def["lon_w"], area_def["lon_e"]),
-            )                      
-              
+            )
+
             weighted_data = outd_here.weighted(weights)
             ts_data = self.make_spatial_means_do_unit_fixes_etc(weighted_data, spatial_coords)
             #print(spatial_coords)
@@ -321,11 +323,11 @@ class NorESMAbstractComponent(ABC):
             #ts_data = ts_weight.sum(dim="time")
             if not outd_year:
                 outd_year = ts_data
-            else: 
+            else:
                 outd_year = xr.concat([outd_year, ts_data], dim="time")
         self.write_ts_data_to_netcdf(outd_year, year_range)
         return outd_year
-    
+
     def write_ts_data_to_netcdf(self, outd_year, year_range):
         ts_out_top = "/nird/datalake/NS9560K/diagnostics/noresm_qad_data/ts_precalc_data/"
         comp_name = self.get_compname()
@@ -343,10 +345,10 @@ class NorESMAbstractComponent(ABC):
 
     def make_spatial_means_do_unit_fixes_etc(self, weighted_data, spatial_coords):
         return weighted_data.mean(spatial_coords)
-    
+
     def get_weights_regrid(self, outd_here):
         return outd_here, np.cos(np.deg2rad(outd_here.lat))
-    
+
     def regrid(self, data):
         return data
 
@@ -397,7 +399,7 @@ class NorESMAbstractComponent(ABC):
         outd_months = None
         if varlist is None:
             varlist = self.var_pams["VAR_LIST_MAIN"]
-        
+
         for month in range(12):
             outd = None
             for year in year_range:
@@ -425,9 +427,9 @@ class NorESMAbstractComponent(ABC):
         elif not files_missing:
             year_range = np.arange(year_start, year_end)
         else:
-            raise ValueError(f"Files are missing in the year range from {year_start}, {year_end}") 
+            raise ValueError(f"Files are missing in the year range from {year_start}, {year_end}")
         return year_range
-    
+
     def find_case_year_range(self):
         year_start = int(self.filelist[0].split(".")[-2].split("-")[0])
         year_end = int(self.filelist[-1].split(".")[-2].split("-")[0])
