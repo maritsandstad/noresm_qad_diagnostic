@@ -15,10 +15,10 @@ warnings.filterwarnings("ignore")
 from .noresm_concrete_components import NorESMAtmComponent, NorESMLndComponent, NorESMOcnComponent, NorESMOcnbgcComponent, NorESMGlcComponent, NorESMIceComponent
 
 # Ocean might need to be multiple components...
-DEFAULT_PAMS = {
+DEFAULT_VAR_LIST_MAIN = {
     "atm": ["TREFHT", "DOD550"],
     "ocn": ["sst", "sss"],
-    "ice": ["aice"], 
+    "ice": ["aice"],
     "lnd": ["nbp", "TOTSOILC", "TOTVEGC", "FATES_GPP", "FATES_LAI"]
 }
 
@@ -46,15 +46,15 @@ class NorESMFullModel:
     def _set_components(self, pamfile):
         self.components = {}
         if pamfile is None:
-            pams = DEFAULT_PAMS
+            pams = {'VAR_LIST_MAIN': DEFAULT_VAR_LIST_MAIN}
         elif isinstance(pamfile, dict):
             pams = pamfile
         else:
             with open(pamfile, 'r') as jsonfile:
                 pams = json.load(jsonfile)
+        if "VAR_LIST_MAIN" not in pams:
+                raise ValueError("pamfile dictionary must contain 'VAR_LIST_MAIN' key.")
         for key, values in pams["VAR_LIST_MAIN"].items():
             print(f"Now initialising {key}")
             #Deal with weighting for land:
             self.components[key] = KEY_COMP_MAPPING[key](self.datapath, values, casename = self.casename)
-            
-        
