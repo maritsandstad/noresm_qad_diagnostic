@@ -13,7 +13,7 @@ from __future__ import annotations
 import xarray as xr
 import numpy as np
 import warnings
-from .setup_loging import get_logger
+from .setup_logging import get_logger
 
 warnings.simplefilter("ignore")
 # setup logging

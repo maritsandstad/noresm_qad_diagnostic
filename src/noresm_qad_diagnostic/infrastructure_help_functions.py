@@ -2,7 +2,7 @@ import os, sys, glob, grp
 import json
 import stat
 
-from .setup_loging import get_logger
+from .setup_logging import get_logger
 
 # Set up logger for this module
 logger = get_logger(__name__)

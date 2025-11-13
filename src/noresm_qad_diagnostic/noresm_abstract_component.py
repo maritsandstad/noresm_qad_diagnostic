@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 warnings.filterwarnings("ignore")
 
-from .setup_loging import get_logger
+from .setup_logging import get_logger
 from .plotting_methods import make_generic_regridder, regrid_se_data, make_bias_plot
 from .infrastructure_help_functions import setup_nested_folder_structure_from_dict, get_spatial_coordinates#, clean_empty_folders_in_tree
 from  .misc_help_functions import get_unit_conversion_and_new_label, make_regridding_target_from_weightfile, get_unit_conversion_from_string, do_light_unit_string_conversion

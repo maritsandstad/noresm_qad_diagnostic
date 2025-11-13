@@ -4,7 +4,7 @@ import os, sys
 import numpy as np
 import xarray as xr
 
-from .setup_loging import get_logger
+from .setup_logging import get_logger
 from .plotting_methods import make_regular_grid_regridder, regrid_se_data
 from .misc_help_functions import get_unit_conversion_from_string, get_unit_conversion_and_new_label
 logger = get_logger(__name__)

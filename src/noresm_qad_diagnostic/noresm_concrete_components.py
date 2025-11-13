@@ -8,7 +8,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import xarray as xr
 
-from .setup_loging import get_logger
+from .setup_logging import get_logger
 from .noresm_abstract_component import NorESMAbstractComponent
 from .plotting_methods import make_generic_regridder, regrid_se_data
 #from .regrid_functions import make_regridder, regrid_file
