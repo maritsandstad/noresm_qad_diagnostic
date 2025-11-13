@@ -25,7 +25,7 @@ def configure_default_logging(
     fmt:    str | None = None
 ) -> None:
     """Optionally configure a package-level StreamHandler with a recommended format.
-    Usecase is if you want a different logging level for reversclim functions.
+    Usecase is if you want a different logging level for noresm-qad-diagnostic functions.
 
     Parameters
     ----------
@@ -34,7 +34,7 @@ def configure_default_logging(
         None will leave it NOTSET to defer to root), by default None.
     fmt : str | None, optional
         Optional custom format string.
-        None will include time and a literal 'reversclim' tag, by default None.
+        None will include time and a literal 'noresm-qad-diagnostic' tag, by default None.
     """
     logger = logging.getLogger(PACKAGE_LOGGER_NAME)
 
@@ -47,7 +47,7 @@ def configure_default_logging(
         return
 
     handler = logging.StreamHandler()
-    fmt = fmt if fmt is not None else "%(asctime)s - reversclim - %(name)s - %(levelname)s - %(message)s"
+    fmt = fmt if fmt is not None else "%(asctime)s - noresm-qad-diagnostic - %(name)s - %(levelname)s - %(message)s"
     formatter = logging.Formatter(fmt)
     handler.setFormatter(formatter)
 

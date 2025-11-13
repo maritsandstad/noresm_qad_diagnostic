@@ -12,7 +12,10 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+from .setup_logging import get_logger
 from .noresm_concrete_components import NorESMAtmComponent, NorESMLndComponent, NorESMOcnComponent, NorESMOcnbgcComponent, NorESMGlcComponent, NorESMIceComponent
+# setup logging
+logger = get_logger(__name__)
 
 # Ocean might need to be multiple components...
 DEFAULT_VAR_LIST_MAIN = {
@@ -55,6 +58,6 @@ class NorESMFullModel:
         if "VAR_LIST_MAIN" not in pams:
                 raise ValueError("pamfile dictionary must contain 'VAR_LIST_MAIN' key.")
         for key, values in pams["VAR_LIST_MAIN"].items():
-            print(f"Now initialising {key}")
+            logger.info(f"Now initialising {key}")
             #Deal with weighting for land:
             self.components[key] = KEY_COMP_MAPPING[key](self.datapath, values, casename = self.casename)
