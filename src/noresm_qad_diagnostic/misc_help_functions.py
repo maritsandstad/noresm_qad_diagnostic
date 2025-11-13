@@ -1,5 +1,8 @@
 import numpy as np
 import xarray as xr
+from .setup_logging import get_logger
+# Set up logger for this module
+logger = get_logger(__name__)
 
 UNIT_PREFIXES = {
     "d" : -1,
@@ -32,11 +35,10 @@ MOLAR_MASSES= {
 }
 
 def simple_conversion_numbers(base_unit_in, base_unit_out):
-    #print(base_unit_in)
-    #print(base_unit_out)
+    logger.debug(f"Attempting conversion from {base_unit_in} to {base_unit_out}")
     if base_unit_in in TIME_UNITS_IN_S and base_unit_out in TIME_UNITS_IN_S:
         return TIME_UNITS_IN_S[base_unit_in] / TIME_UNITS_IN_S [base_unit_out]
-    print(f"Basic underlaying unit is not the same ({base_unit_in} vs {base_unit_out}), currently unimplemented")
+    logger.warning(f"Basic underlaying unit is not the same ({base_unit_in} vs {base_unit_out}), currently unimplemented")
     return 1
 
 def do_light_unit_string_conversion(unit):
@@ -102,13 +104,13 @@ def get_unit_conversion_from_string(obs_unit, mod_unit, areasummed = False):
     obs_unit = do_light_unit_string_conversion(obs_unit)
     mod_unit = do_light_unit_string_conversion(mod_unit)
     if obs_unit is None or mod_unit is None:
-        print("Stopped on the None")
+        logger.warning("Stopped on the None")
         return 1, mod_unit
-    print(f"Coming in with obs: {obs_unit}  and mod: {mod_unit}")
+    logger.debug(f"Coming in with obs: {obs_unit}  and mod: {mod_unit}")
     obs_unit_parts = obs_unit.split()
     mod_unit_parts = mod_unit.split()
     if len(obs_unit_parts) != len(mod_unit_parts):
-        print("Units not directly compatible area weighting likely necessary, this is currently unimplemented")
+        logger.warning("Units not directly compatible area weighting likely necessary, this is currently unimplemented")
         return 1, mod_unit
     unit_conversion = 1
     for partnum in range(len(obs_unit_parts)):
@@ -130,7 +132,7 @@ def make_regridding_target_from_weightfile(weight_file, filename_exmp):
             return None
         weights = xr.open_dataset(weight_file)
         out_shape = weights.dst_grid_dims.load().data.tolist()[::-1]
-        
+
         #Some prep to get the bounds:
         lat_b_out = np.zeros(out_shape[0]+1)
         lon_b_out = weights.xv_b.data[:out_shape[1]+1, 0]
@@ -143,7 +145,7 @@ def make_regridding_target_from_weightfile(weight_file, filename_exmp):
                 #"lat_b": ("lat_b", lat_b_out),
                 #"lon_b": ("lon_b", lon_b_out),
             }
-        ) 
+        )
     else:
         dummy_out = xr.Dataset(
             {
