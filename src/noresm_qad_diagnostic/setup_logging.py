@@ -1,6 +1,6 @@
 # Optional helper functions for applications that want to configure package logging with a recommended format.
 import logging
-from noresm_qad_diagnostic import PACKAGE_LOGGER_NAME
+from .constants import PACKAGE_LOGGER_NAME
 
 def get_logger(
     name:   str | None = None
