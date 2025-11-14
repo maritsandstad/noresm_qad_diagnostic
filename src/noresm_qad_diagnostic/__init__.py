@@ -11,4 +11,4 @@ logger = logging.getLogger(PACKAGE_LOGGER_NAME)
 logger.addHandler(logging.NullHandler())
 
 # Export the package logger for convenience
-__all__ = ["logger", "PACKAGE_LOGGER_NAME", "NorESMQADD"]
+__all__ = ["logger", "PACKAGE_LOGGER_NAME"]
