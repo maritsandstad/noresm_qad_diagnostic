@@ -3,7 +3,7 @@
         "atm": ["TREFHT", "DOD550", "PRECT", "CLDTOT", "toa"],
         "ocn": ["sstga", "sssga", "tempga", "AMOC"],
         "ocn-bgc": ["fgco2", "ppint", "epc100"],
-        "ice": ["aice-arctic", "aice-antarctic"], 
+        "ice": ["aice-arctic", "aice-antarctic"],
         "lnd": ["nbp", "TOTSOMC_1m", "FATES_VEGC", "FATES_GPP", "FATES_LAI"]
     },
 
@@ -13,13 +13,13 @@
         "sst" : ["WOA"],
         "sss" : ["WOA"],
         "aice-arctic": ["False"],
-        "aice-antarctic": ["False"], 
+        "aice-antarctic": ["False"],
         "FATES_LAI": ["MODIS", "AVHRR"],
         "ppint": ["False"]
     },
 
     "COMPARE_RUNS" : {
-        "/datalake/NS9560K/noresm3/cases" :
+        "/nird/datalake/NS9560K/noresm3/cases" :
         [
             "n1850.ne30_tn14.hybrid_fatessp.202401007",
             "n1850.ne30_tn14.hybrid_fatessp.20241111"

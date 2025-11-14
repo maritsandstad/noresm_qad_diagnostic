@@ -8,13 +8,15 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import xarray as xr
 
+from .setup_logging import get_logger
 from .noresm_abstract_component import NorESMAbstractComponent
 from .plotting_methods import make_generic_regridder, regrid_se_data
 #from .regrid_functions import make_regridder, regrid_file
 from .misc_help_functions import make_regridding_target_from_weightfile, get_unit_conversion_from_string
 from .general_util_functions import amoc
 from .regrid_functions import make_regridder, make_regular_outgrid
-
+# setup logging
+logger = get_logger(__name__)
 
 MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 
@@ -24,8 +26,8 @@ SEASONS = ["DJF", "MAM", "JJA", "SON"]
 #def get_minimal_intersecting_year_range(year_range, year_range_other):
 
 _weight_file_dict = {
-    48600 : "/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne30pg3_to_0.5x0.5_nomask_aave_da_c180515.nc",
-    13824: "/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne16pg3_to_1.9x2.5_nomask_scripgrids_c250425.nc"
+    48600 : "/nird/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne30pg3_to_0.5x0.5_nomask_aave_da_c180515.nc",
+    13824: "/nird/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne16pg3_to_1.9x2.5_nomask_scripgrids_c250425.nc"
 }
 
 class NorESMLndComponent(NorESMAbstractComponent):
@@ -39,7 +41,7 @@ class NorESMLndComponent(NorESMAbstractComponent):
         super().__init__(f"{datapath}/lnd/hist/", varlist=varlist, casename=casename)
         self._set_correct_weightfile()
         self.regridder = make_generic_regridder(self.weightfile, self.filelist[0])
-        self.regrid_target = make_regridding_target_from_weightfile(self.weightfile, self.filelist[0])    
+        self.regrid_target = make_regridding_target_from_weightfile(self.weightfile, self.filelist[0])
 
 
     #def clean_out_empty_folders(self):
@@ -57,7 +59,7 @@ class NorESMLndComponent(NorESMAbstractComponent):
                 self.weightfile = _weight_file_dict[len(data_check["lndgrid"])]
                 self.regrid_target = make_regridding_target_from_weightfile(None, self.filelist[0])
                 return
-            
+
         print("No weightfile found for land data, but one might be needed")
         self.weightfile = None
 
@@ -75,12 +77,12 @@ class NorESMLndComponent(NorESMAbstractComponent):
 
     def regrid(self, data):
         return regrid_se_data(self.regridder, data)
-    
+
     def get_weights_regrid(self, outd_here):
         outd_here = self.regrid(outd_here)
         return outd_here, np.cos(np.deg2rad(outd_here.lat))
-    
-    
+
+
 
 class NorESMAtmComponent(NorESMAbstractComponent):
     """
@@ -110,9 +112,9 @@ class NorESMAtmComponent(NorESMAbstractComponent):
         #(f"{self.datapath}*.clm2.h0.*.nc")
         if len(glob.glob(f"{self.datapath}*.cam.h0.*.nc")) > 0:
             return glob.glob(f"{self.datapath}*.cam.h0.*.nc")
-        else: 
+        else:
             return glob.glob(f"{self.datapath}*.cam.h0a.*.nc")
-        
+
     def set_composite_variable_dict(self):
         self.composite_variable_dict = {"toa": ["FSNT", "FLNT"]}
 
@@ -121,7 +123,7 @@ class NorESMAtmComponent(NorESMAbstractComponent):
         if "toa" in self.varpams:
             mean_ts["toa"] = mean_ts["FSNT"] - mean_ts["FLNT"]
         return mean_ts
-        
+
 class NorESMOcnComponent(NorESMAbstractComponent):
     """
     Class that holds and organises info on modelling outputs,
@@ -130,10 +132,10 @@ class NorESMOcnComponent(NorESMAbstractComponent):
     def __init__(
         self, datapath, varlist, casename=None, weightfile = None
     ):
-        super().__init__(f"{datapath}/ocn/hist/", varlist=varlist, casename=casename)  
+        super().__init__(f"{datapath}/ocn/hist/", varlist=varlist, casename=casename)
 
         if weightfile is None:
-            self.weightfile = ("/datalake/NS9560K/diagnostics/land_xesmf_diag_data/grid_tnx1v4_20170622.nc")
+            self.weightfile = ("/nird/datalake/NS9560K/diagnostics/land_xesmf_diag_data/grid_tnx1v4_20170622.nc")
         self.regrid_target = make_regular_outgrid()
         self.unit_dict["AMOC"] = "Sv"
 
@@ -152,10 +154,10 @@ class NorESMOcnComponent(NorESMAbstractComponent):
         """
         #(f"{self.datapath}*.clm2.h0.*.nc")
         return glob.glob(f"{self.datapath}*.blom.hm.*.nc")
-    
+
     def set_composite_variable_dict(self):
         self.composite_variable_dict = {"AMOC": ["mmflxd"]}
-    
+
     def get_weights_regrid(self, outd_here):
         # TODO: Get areacella weights here
         grid = xr.open_dataset(self.weightfile)
@@ -165,7 +167,7 @@ class NorESMOcnComponent(NorESMAbstractComponent):
         pweight = pweight.assign_coords(lat=grid.plat)
         pweight = pweight.assign_coords(lon=grid.plon)
         return outd_here, pweight
-    
+
     def add_variables_pre_regridding(self, outd, varlist_in=None):
         if varlist_in is None:
             varlist_in = self.varpams
@@ -175,13 +177,13 @@ class NorESMOcnComponent(NorESMAbstractComponent):
             else:
                 outd = xr.merge([outd, amoc(outd)])
         return outd
-    
+
     def regrid(self, data):
         return self.regridder(data)
-    
+
     #def regrid(self, data):
     #    return self.regridder(data)
-    
+
 class NorESMOcnbgcComponent(NorESMOcnComponent):
 
     def __init__(self, datapath, varlist, casename=None, weightfile=None):
@@ -208,7 +210,7 @@ class NorESMOcnbgcComponent(NorESMOcnComponent):
         if variable in self.expected_unit.keys():
             return self.expected_unit[variable]
         return super().get_variable_unit(variable)
-    
+
     def get_compname(self):
         return "ocnbgc"
 
@@ -223,11 +225,11 @@ class NorESMOcnbgcComponent(NorESMOcnComponent):
         """
         #(f"{self.datapath}*.clm2.h0.*.nc")
         return glob.glob(f"{self.datapath}*.blom.hbgcm.*.nc")
-    
-            
+
+
     def set_composite_variable_dict(self):
         self.composite_variable_dict = {"fgco2": ["co2fxu", "co2fxd"]}
-    
+
     def make_spatial_means_do_unit_fixes_etc(self, weighted_data, spatial_coords):
         mean_ts = weighted_data.sum(spatial_coords)
         if "fgco2" in self.varpams:
@@ -241,7 +243,7 @@ class NorESMOcnbgcComponent(NorESMOcnComponent):
 
         return mean_ts
 
-    
+
 class NorESMIceComponent(NorESMAbstractComponent):
     """
     Class that holds and organises info on modelling outputs,
@@ -254,7 +256,7 @@ class NorESMIceComponent(NorESMAbstractComponent):
         self.weight_dict = {}
         self.regrid_target = make_regular_outgrid()
         if weightfile is None:
-            self.weightfile = ("/datalake/NS9560K/diagnostics/land_xesmf_diag_data/grid_tnx1v4_20170622.nc")
+            self.weightfile = ("/nird/datalake/NS9560K/diagnostics/land_xesmf_diag_data/grid_tnx1v4_20170622.nc")
         self.precalc_weight_dict()
         if "aice-antarctic" in self.varpams:
             self.unit_dict["aice-antarctic"] = self.unit_dict["aice"]
@@ -276,10 +278,10 @@ class NorESMIceComponent(NorESMAbstractComponent):
         """
         #(f"{self.datapath}*.clm2.h0.*.nc")
         return glob.glob(f"{self.datapath}*.cice.h.*.nc")
-    
+
     def set_composite_variable_dict(self):
         self.composite_variable_dict = {
-            "aice-arctic": ["aice", "TLAT", "TLON"], 
+            "aice-arctic": ["aice", "TLAT", "TLON"],
             "aice-antarctic": ["aice", "TLAT", "TLON"]
             }
 
@@ -294,12 +296,12 @@ class NorESMIceComponent(NorESMAbstractComponent):
 
     def add_variables_pre_regridding(self, outd, varlist_in=None):
         return self.get_hemispheric_split_variables(outd, varlist_in=varlist_in)
-        
+
 
     def precalc_weight_dict(self):
         vars_for_weights = list(set(self.varpams.copy()) - set(self.composite_variable_dict.keys()))
 
-        ext_varlist = vars_for_weights.copy() 
+        ext_varlist = vars_for_weights.copy()
         for areatype in ["tarea", "uarea", "narea","earea", "TLAT"]:
             ext_varlist.append(areatype)
         datause = xr.open_dataset(self.filelist[0])[ext_varlist]
@@ -314,13 +316,13 @@ class NorESMIceComponent(NorESMAbstractComponent):
             if key in outd_here.keys():
                 return outd_here, weight
         return outd_here, super().get_weights(outd_here)
-    
+
     ##def regrid(self, data):
         return self.regridder(data)
-    
+
     def get_hemispheric_split_variables(self, orig_data, varlist_in = None):
         if varlist_in is None:
-            varlist_in = self.varpams    
+            varlist_in = self.varpams
         if "aice-antarctic" in varlist_in:
             orig_data["aice-antarctic"] = orig_data["aice"].where(orig_data.nj<self.hemisplit_nj, 0)
         if "aice-arctic" in varlist_in:
@@ -335,19 +337,19 @@ class NorESMIceComponent(NorESMAbstractComponent):
     def make_spatial_means_do_unit_fixes_etc(self, weighted_data, spatial_coords):
         mean_ts = weighted_data.sum(spatial_coords)
         return mean_ts
-    
+
     def make_comparison_map_no_comparison_data(self, variable, subfig_handle):
         #Put in single map-plot
-        print(f"No observational data for {variable}")
+        logger.warning(f"No observational data for {variable}")
         axs = subfig_handle.subplots(
-            nrows=1, 
-            ncols=1,            
+            nrows=1,
+            ncols=1,
             subplot_kw={"projection": ccrs.Robinson()},
             )
         plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist_in=variable)
         make_bias_plot(plot_data, self.casename, ax = axs)
 
-    
+
 class NorESMGlcComponent(NorESMAbstractComponent):
     """
     Class that holds and organises info on modelling outputs,
@@ -356,7 +358,7 @@ class NorESMGlcComponent(NorESMAbstractComponent):
     def __init__(
         self, datapath, varlist, casename=None
     ):
-        super().__init__(f"{datapath}/glc/hist/", varlist=varlist, casename=casename)  
+        super().__init__(f"{datapath}/glc/hist/", varlist=varlist, casename=casename)
 
 
     #def clean_out_empty_folders(self):
