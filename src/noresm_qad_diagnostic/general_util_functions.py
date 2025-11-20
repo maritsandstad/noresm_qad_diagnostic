@@ -5,7 +5,7 @@ Created on Wed Oct 27 16:30:24 2021
 
 @author: Ada Gjermundsen
 
-General python functions for analyzing NorESM data 
+General python functions for analyzing NorESM data
 
 """
 from __future__ import annotations
@@ -13,9 +13,11 @@ from __future__ import annotations
 import xarray as xr
 import numpy as np
 import warnings
+from .setup_logging import get_logger
 
 warnings.simplefilter("ignore")
-
+# setup logging
+logger = get_logger(__name__)
 
 DAYS_PER_MONTH = {'noleap': [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
        '365_day': [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
@@ -29,21 +31,21 @@ DAYS_PER_MONTH = {'noleap': [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
 
 def consistent_naming(ds):
     """
-    The naming convention for coordinates and dimensions are not the same 
-    for noresm raw output and cmorized variables. This function rewrites the 
+    The naming convention for coordinates and dimensions are not the same
+    for noresm raw output and cmorized variables. This function rewrites the
     coords and dims names to be consistent and the functions thus work on all
     Choose the cmor naming convention.
 
     Parameters
     ----------
-    ds : xarray.Dataset 
+    ds : xarray.Dataset
 
     Returns
     -------
     ds : xarray.Dataset
 
     """
-    #print(ds)
+    logger.debug(f"running consistent_naming on dataset: {ds}")
     if "latitude" in ds.coords and "lat" not in ds.coords:
         ds = ds.rename({"latitude": "lat"})
     if "longitude" in ds.coords and "lon" not in ds.coords:
@@ -132,21 +134,21 @@ def fix_cam_time(ds):
     thus it is necessary to use time boundaries to get the correct time
     If the time variable is not corrected, none of the functions involving time
     e.g. yearly_avg, seasonal_avg etc. will provide correct information
-    
-    clm has the same problem, but in order to make life even harder, clm starts out with 
-    negative timebounds, so that if you use the method which works for cam the first month in clm (should be January, is February in output) 
-    actually get shifted to December if you use the bounds 
-    
+
+    clm has the same problem, but in order to make life even harder, clm starts out with
+    negative timebounds, so that if you use the method which works for cam the first month in clm (should be January, is February in output)
+    actually get shifted to December if you use the bounds
+
     Parameters
     ----------
-    ds : xarray.Dataset 
+    ds : xarray.Dataset
 
     Returns
     -------
     ds_weighted : xarray.Dataset with corrected time
     """
     from cftime import DatetimeNoLeap
-    
+
     if "time_bounds" in ds.coords or "time_bounds" in list(ds.keys()):
         # this is a clm hack. Not recommended at all!
         ds = ds.rename({"time_bounds": "time_bnds"})
@@ -154,7 +156,7 @@ def fix_cam_time(ds):
         months[0] = 1
         years = ds.time_bnds.isel(bnds=0).dt.year.values
         years[0] = years[1]
-    else: 
+    else:
         months = ds.time_bnds.isel(bnds=0).dt.month.values
         years = ds.time_bnds.isel(bnds=0).dt.year.values
     dates = [DatetimeNoLeap(year, month, 15) for year, month in zip(years, months)]
@@ -167,8 +169,8 @@ def fix_time(ds, yr0=1850):
     If there are problems with the calender used in the cmorized files (e.g. GFDL-ESM4)
     This function will overwrite the time array such that (all) other functions can be used
     Not needed for NorESM analysis in general, but e.g. in feedback analysis both kernels and
-    model dataset need to use the same time  
-    
+    model dataset need to use the same time
+
     """
     from itertools import product
     from cftime import DatetimeNoLeap
@@ -238,7 +240,7 @@ def yearly_avg(ds):
     """
     # Note! NorESM raw CAM h0 files have wrong time variable, necessary to use time boundaries to
     # get the correct time
-    #print(ds.time)
+    logger.debug(f"Running yearly_avg on dataset with original time axis: {ds.time}")
     month_length = ds.time.dt.days_in_month
     weights = month_length.groupby("time.year") / month_length.groupby("time.year").sum()
     # Test that the sum of the weights for each year is 1.0
@@ -258,15 +260,15 @@ def yearly_avg(ds):
 def seasonal_avg_timeseries(ds, var=""):
     """Calculates timeseries over seasonal averages from timeseries of monthly means
     The weighted average considers that each month has a different number of days.
-    Using 'QS-DEC' frequency will split the data into consecutive three-month periods, 
-    anchored at December 1st. 
-    I.e. the first value will contain only the avg value over January and February 
+    Using 'QS-DEC' frequency will split the data into consecutive three-month periods,
+    anchored at December 1st.
+    I.e. the first value will contain only the avg value over January and February
     and the last value only the December monthly averaged value
-    
+
     Parameters
     ----------
     ds : xarray.DataArray i.e.  ds[var]
-        
+
     Returns
     -------
     ds_out: xarray.DataSet with 4 timeseries (one for each season DJF, MAM, JJA, SON)
@@ -294,10 +296,10 @@ def seasonal_avg_timeseries(ds, var=""):
 
 def seasonal_avg(_ds, var, ystart, yend):
     """Calculates seasonal averages from timeseries of monthly means
-    The time dimension is reduced to 4 seasons: 
+    The time dimension is reduced to 4 seasons:
         * season   (season) object 'DJF' 'JJA' 'MAM' 'SON'
     The weighted average considers that each month has a different number of days.
-    
+
     Parameters
     ----------
     ds : xarray.DataSet i.e.  ds[var]
@@ -306,7 +308,7 @@ def seasonal_avg(_ds, var, ystart, yend):
     yend: int, end year
     Returns
     -------
-    sesavg : xarray.DataSet 
+    sesavg : xarray.DataSet
     """
     month_length = _ds.time.dt.days_in_month
     # Calculate the weights by grouping by 'time.season'.
@@ -315,7 +317,7 @@ def seasonal_avg(_ds, var, ystart, yend):
     # np.testing.assert_allclose(weights.groupby("time.season").sum().values, np.ones(4))
     # Calculate the weighted average
     # sesavg = (ds * weights).groupby("time.season").sum(dim="time")
-    
+
     sesavg = (_ds[var] * month_length).resample(time="QS-DEC").sum() / month_length.where(_ds[var].notnull()).resample(
             time="QS-DEC"
         ).sum()
@@ -335,7 +337,7 @@ def mask_region_latlon(ds, lat_low=-90, lat_high=90, lon_low=0, lon_high=360):
     Also after regridding
     This is not the case for ice and ocean variables for which some cmip6 models
     use -180 -> 180
-    
+
     Parameters
     ----------
     ds : xarray.DataArray or xarray.DataSet
@@ -343,13 +345,13 @@ def mask_region_latlon(ds, lat_low=-90, lat_high=90, lon_low=0, lon_high=360):
     lat_high : int or float, lower latitude boudary. The default is 90.
     lon_low :  int or float, East boudary. The default is 0.
     lon_high : int or float, West boudary. The default is 360.
-    
+
     Returns
     -------
     ds_out : xarray.DataArray or xarray.DataSet with data only for the selected region
-    
-    Then it is still possible to use other functions e.g. global_mean(ds) to 
-    get an averaged value for the confined region 
+
+    Then it is still possible to use other functions e.g. global_mean(ds) to
+    get an averaged value for the confined region
     """
     ds_out = ds.where((ds.lat >= lat_low) & (ds.lat <= lat_high))
     if lon_high > lon_low:
@@ -396,7 +398,7 @@ def get_areacello(cmor=True):
         area = xr.open_dataset(
             "/projects/NS9034K/CMIP6/CMIP/NCC/NorESM2-MM/piControl/r1i1p1f1/Ofx/areacello/gn/latest/areacello_Ofx_NorESM2-MM_piControl_r1i1p1f1_gn.nc"
         )
-       
+
         mask = xr.open_dataset(
             "/projects/NS9034K/CMIP6/CMIP/NCC/NorESM2-MM/piControl/r1i1p1f1/Ofx/sftof/gn/latest/sftof_Ofx_NorESM2-MM_piControl_r1i1p1f1_gn.nc"
         )
@@ -406,13 +408,13 @@ def get_areacello(cmor=True):
 
 
 def select_month(ds, monthnr):
-    """ Calulates timeseries for one given month 
+    """ Calulates timeseries for one given month
 
     Parameters
     ----------
     ds : xarray.DataArray i.e. ds[var]
     monthnr: int , nr of month 1 = January, 2 = February etc.
-    
+
     Returns
     -------
     ds : xarray.DataArray with single month values
@@ -426,7 +428,7 @@ def lat_lon_bnds(ds):
     Parameters
     ----------
     ds : xarray.Dataset with lat, lon dimensions
-    
+
     Returns
     -------
     ds : xarray.Dataset same as input Dataset, but with lat_bnd and lon_bnd added as DataArray(s)
@@ -479,19 +481,19 @@ def lat_lon_bnds(ds):
 
 
 def sea_ice_ext(ds, pweight=None, cmor=True):
-    """ 
+    """
     Calculates the sea ice extent from the sea ice concentration fice in BLOM raw output and siconc in cmorized files
-    Sea ice concentration (fice or siconc) is the percent areal coverage of ice within the ocean grid cell. 
+    Sea ice concentration (fice or siconc) is the percent areal coverage of ice within the ocean grid cell.
     Sea ice extent is the integral sum of the areas of all grid cells with at least 15% ice concentration.
-    
-    Please note that is consistent to use the area variable defined on the ocean grid in relation to sea-ice variables, 
+
+    Please note that is consistent to use the area variable defined on the ocean grid in relation to sea-ice variables,
     but you have to ignore the final j-row of e.g. area. So drop the last row with j=385 of area (and ocean output of sea ice) when dealing with the sea ice variables.
- 
+
     Parameters
     ----------
     ds : xarray.DataArray i.e.  ds[var] (var = fice in BLOM)
     pweight : xarray.DataArray with area information
-    
+
     Returns
     -------
     ds_out : xarray.Dataset with sea-extent for each hemisphere, in March and in September
@@ -535,16 +537,16 @@ def sea_ice_ext(ds, pweight=None, cmor=True):
 
 
 def sea_ice_area(ds, pweight=None, cmor=True):
-    """ 
+    """
     Calculates the sea ice extent from the sea ice concentration fice in BLOM raw output and siconc in cmorized files
-    Sea ice concentration (fice or siconc) is the percent areal coverage of ice within the ocean grid cell. 
+    Sea ice concentration (fice or siconc) is the percent areal coverage of ice within the ocean grid cell.
     Sea ice area is the integral sum of the product of ice concentration and area of all grid cells with at least 15% ice concentration
-    
+
     Parameters
     ----------
     ds : xarray.DataArray i.e.  ds[var] (var = fice in BLOM)
     pweight : xarray.DataArray with area information
-    
+
     Returns
     -------
     ds_out : xarray.Dataset with sea-extent for each hemisphere, in March and in September
@@ -590,22 +592,22 @@ def sea_ice_area(ds, pweight=None, cmor=True):
 
 def select_atlantic_latbnds(ds, minimal = True):
     """
-    Selects the Atlantic meridional overtuning streamfunction / heat transport 
+    Selects the Atlantic meridional overtuning streamfunction / heat transport
     @2&N (rapid), @45N and the maximum between 20N and 60N
 
     Parameters
     ----------
-    ds : xarray.DataArray i.e.  ds[var] var = mmflxd (raw) and var = msftmz (cmorized) 
+    ds : xarray.DataArray i.e.  ds[var] var = mmflxd (raw) and var = msftmz (cmorized)
                              or ds[var] var = mhflx (raw) and var = hfbasin (cmorized)
-    
+
     Returns
     -------
-    a zip list of the 3 sections xarray.DataArray and the latitudes for the corresponding sections 
- 
+    a zip list of the 3 sections xarray.DataArray and the latitudes for the corresponding sections
+
     """
     # basin = 0 ->  sector = atlantic_arctic_ocean
     ds = ds.isel(basin=0)["mmflxd"]
-    
+
     amoc26 = ds.sel(lat=26)
     amoc45 = ds.sel(lat=45)
     amoc20_60 = ds.sel(lat=slice(20, 60)).max(dim="lat")
@@ -620,14 +622,14 @@ def select_atlantic_latbnds(ds, minimal = True):
 
 
 def amoc(ds):
-    """ 
-    Calculates the Atlantic meridional overturning circulation 
-    @26N (rapid), @45N and the maximum between 20N and 60N  
-    
+    """
+    Calculates the Atlantic meridional overturning circulation
+    @26N (rapid), @45N and the maximum between 20N and 60N
+
     Parameters
     ----------
     ds : xarray.DataArray i.e.  ds[var] var = mmflxd (raw) and var = msftmz (cmorized)
-    
+
     Returns
     -------
     ds_out : xarray.Dataset with AMOC @ 34S, 26N, 45N, 60N, 66N, and max(20N,60N)
@@ -635,10 +637,9 @@ def amoc(ds):
     ds_out = None
     ds = consistent_naming(ds)
     zipvals = select_atlantic_latbnds(ds)
-    #print(zipvals)
+    logger.debug(f"Selected Atlantic latitude bounds: {zipvals}")
     for da, lat_lim in zipvals:
-        #print(type(da))
-        #print(da)
+        logger.debug(f"Processing dataset for latitude {lat_lim}: {da}")
         da = 1e-9 * da.max(dim="lev")
         da.attrs["long_name"] = "Max Atlantic Ocean Overturning Mass Streamfunction @%s" % lat_lim
         da.attrs["units"] = "Sv"
@@ -656,8 +657,7 @@ def amoc(ds):
         if not isinstance(da, xr.Dataset):
             da = da.to_dataset(name="amoc_%s" % lat_lim)
         if isinstance(ds_out, xr.Dataset):
-            #print(ds_out)
-            #print(da)
+            logger.debug(f"Merging datasets for latitude {lat_lim}: {ds_out} and {da}")
             ds_out = xr.merge([ds_out, da])
         else:
             ds_out = da
@@ -665,14 +665,14 @@ def amoc(ds):
 
 
 def atl_hfbasin(ds):
-    """ 
-    Calculates the Atlantic northward ocean heat transport 
-    @26N (rapid), @45N and the maximum between 20N and 60N  
-    
+    """
+    Calculates the Atlantic northward ocean heat transport
+    @26N (rapid), @45N and the maximum between 20N and 60N
+
     Parameters
     ----------
     ds : xarray.DataArray i.e.  ds[var] var = mhflx (raw) and var = hfbasin (cmorized)
-    
+
     Returns
     -------
     ds_out : xarray.Dataset with AOHT @ 34S, 26N, 45N, 60N, 66N, and max(20N,60N)
@@ -701,14 +701,14 @@ def atl_hfbasin(ds):
     return ds_out
 
 def atl_salttrans_basin(ds):
-    """ 
-    Calculates the Atlantic northward ocean salt transport 
+    """
+    Calculates the Atlantic northward ocean salt transport
     @26N (rapid), @45N, 34
-    
+
     Parameters
     ----------
-    ds : xarray.DataArray i.e.  ds[var] var = msflx (raw) 
-    
+    ds : xarray.DataArray i.e.  ds[var] var = msflx (raw)
+
     Returns
     -------
     ds_out : xarray.Dataset with AOST @ 34S, 26N, 45N, 60N, 66N, and max(20N,60N)
@@ -737,12 +737,12 @@ def atl_salttrans_basin(ds):
     return ds_out
 
 def areaavg_ocn(ds, pweight=None, cmor=True):
-    """ 
-    Calculates area averaged values   
-    
+    """
+    Calculates area averaged values
+
     Parameters
     ----------
-    ds : xarray.DataArray i.e.  ds[var] 
+    ds : xarray.DataArray i.e.  ds[var]
     pweight :   xarray.DataArray with area of ocean and land masks as nan. Default is None
     cmor :      boolean, True for cmorized variables and False for NorESM RAW output. Not so important for 1 deg ocean
 
@@ -766,14 +766,14 @@ def areaavg_ocn(ds, pweight=None, cmor=True):
 
 
 def regionalavg_ocn(ds, lat_low=-90, lat_high=90, lon_low=0, lon_high=360, pweight=None, cmor=True):
-    """ 
-    Calculates area averaged values in a region constrained by lat_low, lat_high, lon_low, lon_high 
+    """
+    Calculates area averaged values in a region constrained by lat_low, lat_high, lon_low, lon_high
     lat_low must be less than lat_high, and both need to have values in the range (-90,90)
     lon_low must be less than lon_high, and both need to have values in the range (0,360)
-    
+
     Parameters
     ----------
-    ds :        xarray.DataArray i.e.  ds[var] 
+    ds :        xarray.DataArray i.e.  ds[var]
     lat_low :   int, in range (-90,90). Default is -90
     lat_high :  int, in range (-90,90). Default is 90
     lon_low :   int, in range (0, 360). Default is 0
@@ -800,14 +800,14 @@ def regionalavg_ocn(ds, lat_low=-90, lat_high=90, lon_low=0, lon_high=360, pweig
     return ds_out
 
 def regionalsum_ocn(ds, lat_low=-90, lat_high=90, lon_low=0, lon_high=360, pweight=None, cmor=True):
-    """ 
-    Calculates area averaged values in a region constrained by lat_low, lat_high, lon_low, lon_high 
+    """
+    Calculates area averaged values in a region constrained by lat_low, lat_high, lon_low, lon_high
     lat_low must be less than lat_high, and both need to have values in the range (-90,90)
     lon_low must be less than lon_high, and both need to have values in the range (0,360)
-    
+
     Parameters
     ----------
-    ds :        xarray.DataArray i.e.  ds[var] 
+    ds :        xarray.DataArray i.e.  ds[var]
     lat_low :   int, in range (-90,90). Default is -90
     lat_high :  int, in range (-90,90). Default is 90
     lon_low :   int, in range (0, 360). Default is 0
@@ -836,12 +836,12 @@ def regionalsum_ocn(ds, lat_low=-90, lat_high=90, lon_low=0, lon_high=360, pweig
     return ds_out
 
 def volumeavg_ocn(ds, dp, pweight=None, cmor=True):
-    """ 
-    Calculates volume averaged values   
-    
+    """
+    Calculates volume averaged values
+
     Parameters
     ----------
-    ds : xarray.DataArray i.e. ds[var] e.g. var = thatao, so, tempn, saltn 
+    ds : xarray.DataArray i.e. ds[var] e.g. var = thatao, so, tempn, saltn
     dp : xarray.DataArray with pressure thinkness
     cmor :      boolean, True for cmorized variables and False for NorESM RAW output. Not so important for 1 deg ocean
 
@@ -875,7 +875,7 @@ def ocean_heatcontent_vol(
     mask = xr.open_dataset(
         "/projects/NS9034K/CMIP6/CMIP/NCC/NorESM2-MM/piControl/r1i1p1f1/Ofx/sftof/gn/latest/sftof_Ofx_NorESM2-MM_piControl_r1i1p1f1_gn.nc"
     )
-    
+
     pweight = vol.volcello* 1e-2*mask.sftof # sftof is given in precentage -> convert to fraction
     pweight = consistent_naming(pweight.to_dataset(name='pweight'))
     if return_var == "thetao":
@@ -892,7 +892,7 @@ def ocean_heatcontent_vol(
             ds_out.attrs["standard_name"] = (
                 "global_ocean_temperature_0_%im" % depth_lim
             )
-    if return_var== 'ohc': 
+    if return_var== 'ohc':
         rho = 1e3  # kg/m^3
         cp = 3990  # J/(kg K)
         ds_out = (
@@ -953,8 +953,8 @@ def ocean_heatcontent(
         / oceangrid.pdepth #pdepth given in meters, pbot given in Pa
     )
     #
-    parea = oceangrid.parea*oceangrid.pmask # pmask is given by fraction, max =1 
-    
+    parea = oceangrid.parea*oceangrid.pmask # pmask is given by fraction, max =1
+
     if return_var in ["thetao"]:
         ds_out = (ds.templvl * dplvl * parea).sum(dim=("lev","i","j")) / (
             dplvl * parea
@@ -996,18 +996,18 @@ def get_aeracella(res: str = "f19"):
         # This path only works on NIRD. NS9034 is not mounted in /trd-projects* so impossible to add a general path
         area = xr.open_dataset(
             "/projects/NS9034K/CMIP6/CMIP/NCC/NorESM2-MM/piControl/r1i1p1f1/fx/areacella/gn/latest/areacella_fx_NorESM2-MM_piControl_r1i1p1f1_gn.nc"
-        )    
+        )
     area = consistent_naming(area)
     return area.areacella
 
 def sf_annual_global_sum(ds, area: xr.DataArray | None):
-    """ 
-    Calculates the total (global sum) surface flux 
+    """
+    Calculates the total (global sum) surface flux
     Parameters
     ----------
-    ds : xarray.DataArray i.e.  ds[var] 
+    ds : xarray.DataArray i.e.  ds[var]
     component:  str, name of model component; atmos, ocean, land, seaice. Default is  "atmos",
-    
+
     Returns
     -------
     ds_out : xarray.Dataset with global surface flux
@@ -1034,16 +1034,16 @@ def sf_annual_global_sum(ds, area: xr.DataArray | None):
     if "standard_name" in ds.attrs:
         ds_out.attrs["standard_name"] = "annual_global_sum_of_" + ds.standard_name
     return ds_out
-    
+
 def cb_annual_global_sum(ds, area: xr.DataArray | None):
-    """ 
+    """
     Calculates the total (global sum) columburden
 
     Parameters
     ----------
-    ds : xarray.DataArray i.e.  ds[var] 
+    ds : xarray.DataArray i.e.  ds[var]
     component:  str, name of model component; atmos, ocean, land, seaice. Default is  "atmos",
-    
+
     Returns
     -------
     ds_out : xarray.Dataset with global surface flux
@@ -1062,7 +1062,7 @@ def cb_annual_global_sum(ds, area: xr.DataArray | None):
         ds_out.attrs["long_name"] = "Annualavg, global sum of " + ds.long_name
     if "units" in ds.attrs:
         if ds.units.split("/"):
-            ds_out.attrs["units"] = ds.units.split("/")[0] 
+            ds_out.attrs["units"] = ds.units.split("/")[0]
     if "standard_name" in ds.attrs:
         ds_out.attrs["standard_name"] = "annualavg_global_sum_of_" + ds.standard_name
     return ds_out

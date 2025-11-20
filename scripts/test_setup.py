@@ -10,15 +10,18 @@ from noresm_qad_diagnostic import noresm_qad_diagnostic, ilamb_configurations
 #mpl.rc('font', size=30) # Set default font size to 20
 
 standard_run_dict = {
-    "weight" : "/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne30pg3_to_0.5x0.5_nomask_aave_da_c180515.nc",
-    "outpath" : "figs/",
+    "weight" : "/nird/datalake/NS9560K/diagnostics/land_xesmf_diag_data/map_ne30pg3_to_0.5x0.5_nomask_aave_da_c180515.nc",
+    "outpath" : f"{os.getcwd()}/figs/",
     "pamfile" : f"{os.path.dirname(__file__)}/pam_test.json",
     "compare": None,
-    "year_range_compare": None, 
+    "year_range_compare": None,
 }
 
+if not os.path.exists(standard_run_dict["outpath"]):
+    os.makedirs(standard_run_dict["outpath"])
+
 run_dict_optional_arguments = {
-    "compare_seasonal": False    
+    "compare_seasonal": False
 }
 
 def print_help_message():
@@ -54,8 +57,8 @@ def read_optional_arguments(arguments):
     run_dict = standard_run_dict.copy()
     print(arguments)
     for arg in arguments:
-        arg_key = arg.split("=")[0] 
-        arg_val = arg.split("=")[-1] 
+        arg_key = arg.split("=")[0]
+        arg_val = arg.split("=")[-1]
         if arg_key in run_dict:
             if not os.path.exists(arg_val):
                 print(f"Invalid path {arg_val} for {arg_key} will be ignored")
@@ -109,7 +112,7 @@ if len(glob.glob(f"{run_path}*/hist/*.nc")) < 1:
     print_help_message()
 
 
-ilamb_cfg = ilamb_configurations.IlambConfigurations("ilamb_qad-diags.cfg")
+ilamb_cfg = ilamb_configurations.IlambConfigurations(f"{os.path.dirname(__file__)}/ilamb_qad-diags.cfg")
 print(ilamb_cfg.configurations["FATES_VEGC"].obs_limits)
 print(ilamb_cfg.configurations["ppint"].target_bias)
 print(ilamb_cfg.configurations["fgco2"].drift_max)

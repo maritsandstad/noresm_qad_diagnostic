@@ -4,8 +4,10 @@ import os, sys
 import numpy as np
 import xarray as xr
 
+from .setup_logging import get_logger
 from .plotting_methods import make_regular_grid_regridder, regrid_se_data
 from .misc_help_functions import get_unit_conversion_from_string, get_unit_conversion_and_new_label
+logger = get_logger(__name__)
 
 class IlambCompVariable:
 
@@ -17,7 +19,7 @@ class IlambCompVariable:
         self.obs_limits = [None, None, None, None]
         self.drift_max = None
         self.target_bias = [None, None, None]
-    
+
     def set_alt_names(self, alt_name_string):
         alt_names = []
         for alt_name in alt_name_string.split(","):
@@ -30,20 +32,20 @@ class IlambCompVariable:
         oname = path_string.split("/")[-2]
         self.obsdatasets[oname] = {"dataloc": path_string, "conv_factor": 1}
         return oname
-    
+
     def calc_obs_conv_factor(self, oname, plot_unit, tab_unit):
         if plot_unit != tab_unit:
             unit_conversion, obs_unit =  get_unit_conversion_from_string(plot_unit, tab_unit)
             #print(f"For {oname} with table_unit {tab_unit} and plot_unit {plot_unit} we get conversion factor {unit_conversion} to get obs_unit {obs_unit}")
             self.obsdatasets[oname]["conv_factor"] = unit_conversion
-    
+
     def set_plot_unit(self, plot_unit, oname):
         if self.plot_unit is None:
             self.plot_unit = plot_unit
         else:
             tab_unit = self.plot_unit
             self.plot_unit = plot_unit
-            self.calc_obs_conv_factor(oname, plot_unit, tab_unit)    
+            self.calc_obs_conv_factor(oname, plot_unit, tab_unit)
 
     def set_obs_limits(self, lim_string):
         obs_limits = np.array(lim_string.split(",")).astype(float)
@@ -51,7 +53,7 @@ class IlambCompVariable:
 
     def set_drift_max(self, drift_string):
         self.drift_max = float(drift_string)
-    
+
     def set_target_bias(self, target_str):
         target_str_arr = np.array(target_str.split(",")).astype(float)
         if len(target_str_arr) == 0:
@@ -63,16 +65,17 @@ class IlambCompVariable:
             self.target_bias = np.array(target_str_arr).astype(float)
 
 
-    
-        
+
+
 
 def read_ilamb_configurations(cfg_file):
     ilamb_cfgs = {}
     curr_var = None
     curr_oname = None
     with open(cfg_file, "r") as cfile:
+        logger.debug(f"Reading ILAMB configuration from file {cfg_file}")
         for line in cfile:
-            #print(line)
+            logger.debug(f"Processing line: {line.strip()}")
             if line.startswith("variable"):
                 if curr_var is not None:
                     ilamb_cfgs[curr_var.name] = curr_var
@@ -95,7 +98,7 @@ def read_ilamb_configurations(cfg_file):
                 if curr_var.plot_unit is not None and curr_var.plot_unit != tab_unit:
                     curr_var.calc_obs_conv_factor(curr_oname, plot_unit, tab_unit)
                 elif curr_var.plot_unit is None:
-                    curr_var.set_plot_unit(tab_unit, curr_oname)         
+                    curr_var.set_plot_unit(tab_unit, curr_oname)
             if line.startswith("plot_unit"):
                 plot_unit = line.split('"')[-2].strip()
                 curr_var.set_plot_unit(plot_unit, curr_oname)
@@ -106,7 +109,7 @@ def read_ilamb_configurations(cfg_file):
 
 class IlambConfigurations:
 
-    def __init__(self, cfg_file, ilamb_data_dir="/datalake/NS9560K/diagnostics/ILAMB-Data/"):
+    def __init__(self, cfg_file, ilamb_data_dir="/nird/datalake/NS9560K/diagnostics/ILAMB-Data/"):
         self.data_root = ilamb_data_dir
         if isinstance(cfg_file, dict):
             self.configurations = cfg_file
@@ -118,7 +121,7 @@ class IlambConfigurations:
 
     def get_filepath(self, variable, oname):
         return os.path.join(self.data_root, self.configurations[variable].obsdatasets[oname]["dataloc"])
-    
+
     def get_varname_in_file(self, variable, dataset_keys):
         if variable in dataset_keys:
             return variable
@@ -127,7 +130,7 @@ class IlambConfigurations:
                 if alt_name in dataset_keys:
                     return alt_name
         return None
-    
+
     def get_vaname_in_ilamb_cfgs(self, variable):
         if variable in self.configurations:
             return variable
@@ -137,40 +140,40 @@ class IlambConfigurations:
             if variable in cfgs.alt_names:
                 return ilambvar
         return None
-        
+
     def get_monthly_mean_timeslice_dataset_for_variable_obs(self, variable, oname, year_range=None, season="ANN"):
         dataset = xr.open_dataset(self.get_filepath(variable, oname))
         time_len = len(dataset["time"])
         varname = self.get_varname_in_file(variable, dataset.keys())
         if time_len%12 != 0:
             return None
-      
+
         #if year_range is None:
             #year_range = range(np.max(time_len-120, 0), time_len)
         start_index = int(np.max(time_len-120, 0)) -1
         outd_gn = dataset[varname].isel(time = slice(start_index, time_len))
         if "missing" in dataset[varname].attrs.keys():
-            print(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
+            logger.warning(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
         outd_gn = outd_gn.where(outd_gn < 1e9)
 
         monthly_means = outd_gn.groupby('time.month').mean('time')
-        print(f"Mean value of {monthly_means.mean().values} and conversion factor {self.configurations[variable].obsdatasets[oname]['conv_factor']}")
+        logger.info(f"Mean value of {monthly_means.mean().values} and conversion factor {self.configurations[variable].obsdatasets[oname]['conv_factor']}")
         return monthly_means * self.configurations[variable].obsdatasets[oname]["conv_factor"]
 
-    
+
     def get_data_for_map_plot(self, variable, oname, regrid_target, season="ANN", year_range = None):
         #path = self.get_filepath(variable, oname)
         # TODO: Implement seasonal
         if season != "ANN":
             return None
-        
+
         # TODO: Deal with year_range not None
         if year_range is not None:
             year_range = None
         if not os.path.exists(self.get_filepath(variable, oname)):
-            print(f"Observation in path {self.get_filepath(variable, oname)} not found, check your configuration files")
+            logger.warning(f"Observation in path {self.get_filepath(variable, oname)} not found, check your configuration files")
             return None
-        
+
         dataset = xr.open_dataset(self.get_filepath(variable, oname))
         time_len = len(dataset["time"])
         varname = self.get_varname_in_file(variable, dataset.keys())
@@ -181,12 +184,12 @@ class IlambConfigurations:
                 #year_range = range(np.max(time_len-120, 0), time_len)
             start_index = int(np.max(time_len-120, 0)) -1
             outd_gn = dataset[varname].isel(time = slice(start_index, time_len)).mean(dim="time")
-            
+
         elif year_range is None:
             start_index = np.max(time_len-10, 0) -1
             outd_gn = dataset[varname].isel(time = slice(start_index, time_len)).mean(dim="time")
         if "missing" in dataset[varname].attrs.keys():
-            print(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
+            logger.warning(f"{varname} has missing with value {dataset[varname].attrs["missing"]}")
         outd_gn = outd_gn.where(outd_gn < 1e9)
         regridder = make_regular_grid_regridder(outd_gn, regrid_target)
         output = regridder(outd_gn)
@@ -195,7 +198,7 @@ class IlambConfigurations:
         del regridder
         #print(f"Dataset {oname} has conversion factor {self.configurations[variable].obsdatasets[oname]["conv_factor"]} for variable {variable}")
         return output * self.configurations[variable].obsdatasets[oname]["conv_factor"]
-        
+
     def get_variable_plot_unit(self, variable):
         if variable in self.configurations.keys():
             return self.configurations[variable].plot_unit
@@ -204,11 +207,11 @@ class IlambConfigurations:
                 continue
             if variable in ilamb_var.alt_names:
                 return self.configurations[ilamb_varname].plot_unit
-            
-    
+
+
     def add_seasonal_obsdata_to_axis(self, figs, varlist, region_df, obs_comp_dict):
         rownum = int(np.ceil(len(varlist) / 2))
-        print(obs_comp_dict)
+        logger.debug(f"adding seasonal obsdata to axis with obs_comp_dict: {obs_comp_dict}")
         #sys.exit(4)
         for varnum, variable in enumerate(varlist):
             #varname = self.get_varname_in_file(variable)
@@ -220,9 +223,9 @@ class IlambConfigurations:
             if altname not in obs_comp_dict:
                 continue
             yminv, ymaxv, diffrange, negdiffrange = self.configurations[altname].obs_limits
-            print(altname)
+            logger.debug(f"Processing altname: {altname}")
             for oname in obs_comp_dict[altname]:
-                print(oname)
+                logger.debug(f"Processing observation name: {oname}")
                 outd = self.get_monthly_mean_timeslice_dataset_for_variable_obs(altname, oname)
                 if altname == "TSA" and outd.mean()> 200:
                     outd = outd - 273.15
@@ -235,7 +238,7 @@ class IlambConfigurations:
                     #print(f"{region}: {region_info}")
                     if rownum < 2:
                         axnow = figs[region][1][varnum % 2]
-                    else: 
+                    else:
                         axnow = figs[region][1][varnum // 2, varnum % 2]
                     crop = outd.sel(
                         lat=(outd.lat >= region_info["BOX_S"]) & (outd.lat <= region_info["BOX_N"])
@@ -258,7 +261,7 @@ class IlambConfigurations:
                     axnow.set_title(f"{variable} vs {', '.join(obs_comp_dict[altname])}", fontsize=20)
                     if yminv is not None and "pr" in self.configurations[altname].alt_names:
                         axnow.set_ylim(yminv, ymaxv)
-            
+
     def add_target_and_drift(self, variable, axnow, outd_ts, tyaxis):
         varname = self.get_vaname_in_ilamb_cfgs(variable)
         if varname is None:
@@ -271,16 +274,16 @@ class IlambConfigurations:
                 colour = "g"
             axnow.axline(xy1=(0, b), slope=m, label=f'$drift = {m*100:.1f}$', color=colour)
             axnow.legend(loc = 'lower left', fontsize=10)
-            
+
         if self.configurations[varname].target_bias[0] is not None:
             axnow.hlines(self.configurations[varname].target_bias[0],tyaxis[0], tyaxis[-1], color="y", ls = '--')
         if self.configurations[varname].target_bias[1] is not None:
             axnow.hlines(self.configurations[varname].target_bias[0] + self.configurations[varname].target_bias[1],tyaxis[0], tyaxis[-1], color="y", ls = '--')
             axnow.hlines(self.configurations[varname].target_bias[0] + self.configurations[varname].target_bias[2],tyaxis[0], tyaxis[-1], color="y", ls = '--')
-        
+
 
     def print_var_dat(self, variable):
         print(self.configurations.keys())
         print(f"{self.configurations[variable].name} has alt_names: {self.configurations[variable].alt_names}, and plot unit: {self.configurations[variable].plot_unit}")
-        
+
 
