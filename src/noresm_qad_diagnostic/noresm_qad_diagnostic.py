@@ -312,6 +312,8 @@ class NorESMQADD:
                 else:
                     outd_ts = outd_year[item].values
                 # Add multiple lines for amoc..., how to...
+                print(tyaxis)
+                
                 axnow.plot(tyaxis, outd_ts, alpha = alpha, color=color)
             if main_run:
                 axnow.set_title(f"{item} ({run_id.components[name].get_variable_unit(item)})", fontsize=20, fontweight='bold')

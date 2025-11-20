@@ -79,6 +79,13 @@ class NorESMLndComponent(NorESMAbstractComponent):
     def get_weights_regrid(self, outd_here):
         outd_here = self.regrid(outd_here)
         return outd_here, np.cos(np.deg2rad(outd_here.lat))
+
+    # TODO: Proof elsewhere to respawn regridder if it has been desroyed. 
+    def delete_regridder(self):
+        self.regridder.grid_in.destroy()
+        self.regridder.grid_out.destroy()
+        del self.regridder
+        self.regridder = None
     
     
 
@@ -114,12 +121,16 @@ class NorESMAtmComponent(NorESMAbstractComponent):
             return glob.glob(f"{self.datapath}*.cam.h0a.*.nc")
         
     def set_composite_variable_dict(self):
-        self.composite_variable_dict = {"toa": ["FSNT", "FLNT"]}
+        self.composite_variable_dict = {"toa": ["FSNT", "FLNT"], "PRECT":["PRECL", "PRECC"], "E-P":["QFLX", "PRECC", "PRECL"]}
 
     def make_spatial_means_do_unit_fixes_etc(self, weighted_data, spatial_coords):
         mean_ts = weighted_data.mean(spatial_coords)
         if "toa" in self.varpams:
             mean_ts["toa"] = mean_ts["FSNT"] - mean_ts["FLNT"]
+        if "PRECT" in self.varpams:
+            mean_ts["PRECT"] = mean_ts["PRECL"] + mean_ts["PRECL"]
+        if "E-P" in self.varpams:
+            mean_ts["E-P"] = mean_ts["QFLX"]*8.64e4 - (mean_ts["PRECL"] + mean_ts["PRECL"])*8.64e7
         return mean_ts
         
 class NorESMOcnComponent(NorESMAbstractComponent):
@@ -179,6 +190,13 @@ class NorESMOcnComponent(NorESMAbstractComponent):
     def regrid(self, data):
         return self.regridder(data)
     
+    # TODO: Proof elsewhere to respawn regridder if it has been desroyed. 
+    def delete_regridder(self):
+        self.regridder.grid_in.destroy()
+        self.regridder.grid_out.destroy()
+        del self.regridder
+        self.regridder = None
+    
     #def regrid(self, data):
     #    return self.regridder(data)
     
@@ -229,7 +247,10 @@ class NorESMOcnbgcComponent(NorESMOcnComponent):
         self.composite_variable_dict = {"fgco2": ["co2fxu", "co2fxd"]}
     
     def make_spatial_means_do_unit_fixes_etc(self, weighted_data, spatial_coords):
+        print(spatial_coords)
+        print(weighted_data)
         mean_ts = weighted_data.sum(spatial_coords)
+        print(mean_ts.sizes)
         if "fgco2" in self.varpams:
             mean_ts["fgco2"] = mean_ts["co2fxd"] - mean_ts["co2fxu"]
         for variable in mean_ts.data_vars:
@@ -240,6 +261,17 @@ class NorESMOcnbgcComponent(NorESMOcnComponent):
                 mean_ts[variable] = mean_ts[variable] * conv_factor
 
         return mean_ts
+    
+    def _get_mfile_concat(self, varlist, year):
+        mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-*.nc"
+        outd_here = None
+        for sfile in glob.glob(mfile):
+            outd_m = xr.open_dataset(sfile, engine="netcdf4")[varlist]
+            if not outd_here:
+                outd_here = outd_m
+            else:
+                outd_here = xr.concat([outd_here, outd_m], dim="time")
+        return outd_here   
 
     
 class NorESMIceComponent(NorESMAbstractComponent):
@@ -310,9 +342,14 @@ class NorESMIceComponent(NorESMAbstractComponent):
                 self.weight_dict[var] = datause[datause[var].attrs["cell_measures"].split(" ")[-1]]
 
     def get_weights_regrid(self, outd_here):
+        print(outd_here.keys)
+        print(self.weight_dict.keys())
         for key, weight in self.weight_dict.items():
             if key in outd_here.keys():
                 return outd_here, weight
+            for okey in outd_here.keys():
+                if okey.startswith(key):
+                    return outd_here, weight                   
         return outd_here, super().get_weights(outd_here)
     
     ##def regrid(self, data):
@@ -346,6 +383,19 @@ class NorESMIceComponent(NorESMAbstractComponent):
             )
         plot_data = self.main_run.components[self.var_to_comp_map[variable]].get_annual_mean_map_data(varlist_in=variable)
         make_bias_plot(plot_data, self.casename, ax = axs)
+    
+    def _get_mfile_concat_timemean(self, varlist, year):
+        #print(varlist)
+        if "aice" in varlist:
+            #print("Correct branch")
+            mfile_list = []
+            for month in [3, 9]:
+                mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month:02d}.nc"
+                mfile_list.append(mfile)
+            outd_here = xr.open_mfdataset(mfile_list, engine="netcdf4")[varlist]
+        else:
+            super()._get_mfile_concat_timemean(varlist,year)
+        return outd_here
 
     
 class NorESMGlcComponent(NorESMAbstractComponent):

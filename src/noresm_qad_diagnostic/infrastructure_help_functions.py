@@ -68,11 +68,12 @@ def make_monthly_taxis_from_years(years):
     return [years[0] + tstep/12. for tstep in range(12*len(years))]
     
 def get_spatial_coordinates(spatial_data):
-    if "lat" and "lon" in spatial_data.keys():
+    print(spatial_data.dims)
+    if "lat" and "lon" in spatial_data.dims:
         return ["lat", "lon"]
-    if "x" and "y" in spatial_data.keys():
+    if "x" and "y" in spatial_data.dims:
         return ["x", "y"]
-    if "nj" and "ni" in spatial_data.keys():
+    if "nj" and "ni" in spatial_data.dims:
         return ["nj", "ni"]
 
 

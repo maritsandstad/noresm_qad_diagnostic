@@ -19,7 +19,7 @@ from .general_util_functions import yearly_avg, DAYS_PER_MONTH
 
 #def get_minimal_intersecting_year_range(year_range, year_range_other):
 
-
+MLEN_FACTORS = [DAYS_PER_MONTH["noleap"][month+1] / np.sum(DAYS_PER_MONTH["noleap"]) for month in range(12)]
 
 class NorESMAbstractComponent(ABC):
     """
@@ -254,21 +254,26 @@ class NorESMAbstractComponent(ABC):
         year_start = year_range[0]
         ts_data = None
         for file in self.ts_file_list:
+            print(file)
             ys = int(file[-12:-8])
             ye = int(file[-7:-3])
             if ts_data is None:
                 ts_data = xr.open_dataset(file)
                 year_start = ye
             elif ye > year_start:
+                print(f"{year_start:}, {ys:}")
                 ts_data_now = xr.open_dataset(file).isel(time = slice(year_start-ys, None))
-                ts_data = xr.concat([ts_data, ts_data_now])
+                print(ts_data.time.shape)
+                print(ts_data_now.time.shape)
+                ts_data = xr.concat([ts_data, ts_data_now], dim="time")
+                print(ts_data.time.shape)
+                print(ts_data.time)
                 year_start = ye
         return year_start, ts_data
 
     
     def get_area_mean_ts_data(self, varlist_in = None, year_range=None, area_def = None):
 
-        factors = [DAYS_PER_MONTH["noleap"][month+1] / np.sum(DAYS_PER_MONTH["noleap"]) for month in range(12)]
         varlist = self.fix_varlist_for_composite_components(varlist_in)
         print(varlist_in)
         print(varlist)
@@ -283,30 +288,20 @@ class NorESMAbstractComponent(ABC):
         for year in year_range:
             if year < year_range_start:
                 continue
-            outd_yr_here = None
+            outd_here = self._get_mfile_concat_timemean(varlist, year)
 
-            mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-*.nc"
-            outd_here = xr.open_mfdataset(mfile, engine="netcdf4")[varlist]
-            #print(outd_here)
-            #sys.exit(4)
-            #for month in range(12):
-
-             #   mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-{month + 1:02d}{self.get_file_str_ending()}.nc"
-            #outd_here = xr.open_mfdataset(mfile, engine="netcdf4")[varlist]
-            outd_here_t_weighted = outd_here.weighted(xr.DataArray(factors, dims=("time",)))
-            outd_here = outd_here_t_weighted.sum(dim="time")
             outd_here = self.add_variables_pre_regridding(outd_here, varlist_in)
             #print(outd_here)
             outd_here, weights = self.get_weights_regrid(outd_here)
             # Get extra variables before weighting
             if spatial_coords is None:
-                get_spatial_coordinates(outd_here)
+                spatial_coords = get_spatial_coordinates(outd_here)
             if area_def is not None:
                 outd_here = outd_here.sel(
                 lat=slice(area_def["lat_s"], area_def["lat_n"]),
                 lon=slice(area_def["lon_w"], area_def["lon_e"]),
             )                      
-              
+            
             weighted_data = outd_here.weighted(weights)
             ts_data = self.make_spatial_means_do_unit_fixes_etc(weighted_data, spatial_coords)
             #print(spatial_coords)
@@ -341,6 +336,81 @@ class NorESMAbstractComponent(ABC):
                     os.remove(file)
         self.ts_file_list = self.get_ts_filelist()
 
+    def _get_mfile_concat(self, varlist, year):
+        mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-*.nc"
+        outd_here = xr.open_mfdataset(mfile, engine="netcdf4")[varlist]
+        #for month in range(12):
+        return outd_here
+    
+    def _get_mfile_concat_timemean(self, varlist, year):
+        outd_here = self._get_mfile_concat(varlist, year)
+        outd_here_t_weighted = outd_here.weighted(xr.DataArray(MLEN_FACTORS, dims=("time",)))
+        outd_here = outd_here_t_weighted.sum(dim="time")
+        return outd_here
+
+    def get_area_mean_ts_data_per_variable(self, outpath, varlist_in = None, year_range=None, area_def = None):
+        varlist = self.fix_varlist_for_composite_components(varlist_in)
+        print(varlist_in)
+        print(varlist)
+        print(self.varpams)
+        if year_range is None:
+            year_range = self.get_year_range()
+        year_range_start = year_range[0]
+        outd_year = None
+        # year_range_start, outd_year = self.read_from_tsfile(year_range)
+        # if year_range_start == year_range[-1]:
+        #     return outd_year
+        weights = None
+        spatial_coords = None
+        for year in year_range:
+            if year < year_range_start:
+                continue
+            outd_here = self._get_mfile_concat_timemean(varlist, year)
+
+            outd_here = self.add_variables_pre_regridding(outd_here, varlist_in)
+            #print(outd_here)
+            outd_here, weights = self.get_weights_regrid(outd_here)
+            # Get extra variables before weighting
+            if spatial_coords is None:
+                spatial_coords = get_spatial_coordinates(outd_here)
+            # TODO masking here, loop over masks
+            if area_def is not None:
+                outd_here = outd_here.sel(
+                lat=slice(area_def["lat_s"], area_def["lat_n"]),
+                lon=slice(area_def["lon_w"], area_def["lon_e"]),
+            )                      
+            weighted_data = outd_here.weighted(weights)
+            ts_data = self.make_spatial_means_do_unit_fixes_etc(weighted_data, spatial_coords)
+            #sys.exit(4)
+            #print(spatial_coords)
+            #print(len(weighted_data.mean(spatial_coords)))
+            #print(len(factors))
+            #print(ts_data.coords)
+            #ts_weight = ts_data.weighted(xr.DataArray(factors, dims=("time",), coords = ts_data.coords))
+            #if not outd_yr_here:
+                #outd_yr_here = ts_data * factors
+            #else:
+                #outd_yr_here = xr.concat([outd_yr_here, ts_data*factors[month]], dim="time")
+            #ts_data = ts_weight.sum(dim="time")
+            if not outd_year:
+                outd_year = ts_data
+            else: 
+                outd_year = xr.concat([outd_year, ts_data], dim="time")
+            outd_year = outd_year.astype(np.float32)
+        self.write_ts_data_to_netcdf_per_variable(outpath, outd_year, year_range)
+        return outd_year
+
+    def write_ts_data_to_netcdf_per_variable(self, outpath, outd_year, year_range):
+        ts_out_top = outpath
+        comp_name = self.get_compname()
+        for var, outd_year_var in outd_year.data_vars.items():
+            print(outd_year_var)
+            print(outd_year_var.shape)
+            fpath = f"{ts_out_top}/{self.casename}/{var}_{comp_name}_{self.casename}_preproc.nc"
+            outd_year_var.to_netcdf(fpath, format="NETCDF4_CLASSIC", encoding ={var: {"dtype":np.float32}})
+            os.chown(fpath, os.getuid(), grp.getgrnam("ns9560k").gr_gid)
+            os.chmod(fpath, stat.S_IRWXU | stat.S_IRWXG)
+
     def make_spatial_means_do_unit_fixes_etc(self, weighted_data, spatial_coords):
         return weighted_data.mean(spatial_coords)
     
@@ -349,6 +419,9 @@ class NorESMAbstractComponent(ABC):
     
     def regrid(self, data):
         return data
+    
+    def delete_regridder(self):
+        pass
 
     def get_seasonal_data(self, season, year_range, varlist=None):
         """
@@ -423,7 +496,7 @@ class NorESMAbstractComponent(ABC):
         if not files_missing and short:
             year_range = np.arange(max(year_start, year_end - 20), year_end + 1)
         elif not files_missing:
-            year_range = np.arange(year_start, year_end)
+            year_range = np.arange(year_start, year_end + 1)
         else:
             raise ValueError(f"Files are missing in the year range from {year_start}, {year_end}") 
         return year_range
@@ -431,6 +504,7 @@ class NorESMAbstractComponent(ABC):
     def find_case_year_range(self):
         year_start = int(self.filelist[0].split(".")[-2].split("-")[0])
         year_end = int(self.filelist[-1].split(".")[-2].split("-")[0])
+
         files_missing = False
         if len(self.filelist) < (year_end - year_start) * 12:
             files_missing = True
