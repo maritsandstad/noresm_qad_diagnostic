@@ -304,7 +304,7 @@ class NorESMAbstractComponent(ABC):
                 outd_here = outd_here.sel(
                 lat=slice(area_def["lat_s"], area_def["lat_n"]),
                 lon=slice(area_def["lon_w"], area_def["lon_e"]),
-
+                )
             weighted_data = outd_here.weighted(weights)
             ts_data = self.make_spatial_means_do_unit_fixes_etc(weighted_data, spatial_coords)
             #print(spatial_coords)
