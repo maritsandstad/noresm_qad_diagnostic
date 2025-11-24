@@ -130,9 +130,9 @@ class NorESMAtmComponent(NorESMAbstractComponent):
         if "toa" in self.varpams:
             mean_ts["toa"] = mean_ts["FSNT"] - mean_ts["FLNT"]
         if "PRECT" in self.varpams:
-            mean_ts["PRECT"] = mean_ts["PRECL"] + mean_ts["PRECL"]
+            mean_ts["PRECT"] = mean_ts["PRECC"] + mean_ts["PRECL"]
         if "E-P" in self.varpams:
-            mean_ts["E-P"] = mean_ts["QFLX"]*8.64e4 - (mean_ts["PRECL"] + mean_ts["PRECL"])*8.64e7
+            mean_ts["E-P"] = mean_ts["QFLX"]*8.64e4 - (mean_ts["PRECC"] + mean_ts["PRECL"])*8.64e7
         return mean_ts
 
 class NorESMOcnComponent(NorESMAbstractComponent):
