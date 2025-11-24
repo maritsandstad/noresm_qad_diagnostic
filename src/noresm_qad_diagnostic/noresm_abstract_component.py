@@ -23,6 +23,15 @@ logger = get_logger(__name__)
 
 MLEN_FACTORS = [DAYS_PER_MONTH["noleap"][month+1] / np.sum(DAYS_PER_MONTH["noleap"]) for month in range(12)]
 
+def make_area_def_list(area_def, include_global="True"):
+    if include_global:
+        start_list = ["Global"]
+    else:
+        start_list = []
+    for band in area_def:
+        start_list.append(f"{band["lat_n"]}-{band["lat_s"]}")
+    return start_list
+
 class NorESMAbstractComponent(ABC):
     """
     Class that holds and organises info on modelling outputs from some component,
@@ -378,13 +387,21 @@ class NorESMAbstractComponent(ABC):
                 spatial_coords = get_spatial_coordinates(outd_here)
             # TODO masking here, loop over masks
             if area_def is not None:
-                outd_here = outd_here.sel(
-                lat=slice(area_def["lat_s"], area_def["lat_n"]),
-                lon=slice(area_def["lon_w"], area_def["lon_e"]),
-            )                      
+                area_def_list = make_area_def_list(area_def)
+                print(area_def_list)
+                print(outd_here)
+                outd_here = outd_here.expand_dims(dim={"masks": area_def_list})
+                for mask_num, mask in enumerate(area_def):
+                    for variable in outd_here.data_vars:
+                        print(outd_here[variable])
+                        outd_here[variable][mask_num+1, :,:] = outd_here[variable][mask_num+1, :,:].isel(lat=slice(mask["lat_s"], mask["lat_n"]),)
+                        sys.exit(4)
+                print(outd_here)
+                sys.exit(4)                    
             weighted_data = outd_here.weighted(weights)
             ts_data = self.make_spatial_means_do_unit_fixes_etc(weighted_data, spatial_coords)
-            #sys.exit(4)
+
+            sys.exit(4)
             #print(spatial_coords)
             #print(len(weighted_data.mean(spatial_coords)))
             #print(len(factors))

@@ -19,10 +19,40 @@
     },
 
     "MASKS" : {
-        "atm": [],
-        "ocn": [],
-        "ocn-bgc": [],
-        "ice": [],
-        "lnd": []
+        "atm": [
+            {"lat_s":60, "lat_n":90}, 
+            {"lat_s": 20, "lat_n":60}, 
+            {"lat_s":-20, "lat_n":20},
+            {"lat_n":-60, "lat_s":-90}, 
+            {"lat_n": -20, "lat_s":-60}
+        ],
+        "ocn": [
+            {"lat_s":60, "lat_n":90}, 
+            {"lat_s": 20, "lat_n":60}, 
+            {"lat_s":-20, "lat_n":20},
+            {"lat_n":-60, "lat_s":-90}, 
+            {"lat_n": -20, "lat_s":-60}
+        ],
+        "ocn-bgc": [
+            {"lat_s":60, "lat_n":90}, 
+            {"lat_s": 20, "lat_n":60}, 
+            {"lat_s":-20, "lat_n":20},
+            {"lat_n":-60, "lat_s":-90}, 
+            {"lat_n": -20, "lat_s":-60}
+        ],
+        "ice": [
+            {"lat_s":60, "lat_n":90}, 
+            {"lat_s": 20, "lat_n":60}, 
+            {"lat_s":-20, "lat_n":20},
+            {"lat_n":-60, "lat_s":-90}, 
+            {"lat_n": -20, "lat_s":-60}
+        ],
+        "lnd": [
+            {"lat_s":60, "lat_n":90}, 
+            {"lat_s": 20, "lat_n":60}, 
+            {"lat_s":-20, "lat_n":20},
+            {"lat_n":-60, "lat_s":-90}, 
+            {"lat_n": -20, "lat_s":-60}
+        ]
     }
 }

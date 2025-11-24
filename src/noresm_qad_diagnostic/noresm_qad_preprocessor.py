@@ -78,7 +78,7 @@ class NorESMQADPreprocessor:
             pam_dict_copy = self.make_pams_to_send_to_noresm_object(self.done_list[run])
             noresmfull = NorESMFullModel(path, pamfile=pam_dict_copy, casename=run)
             for component in pam_dict_copy["VAR_LIST_MAIN"].keys():
-                noresmfull.components[component].get_area_mean_ts_data_per_variable(self.paths_preproc, varlist_in = pam_dict_copy["VAR_LIST_MAIN"][component])
+                noresmfull.components[component].get_area_mean_ts_data_per_variable(self.paths_preproc, varlist_in = pam_dict_copy["VAR_LIST_MAIN"][component], area_def = self.config_dict['MASKS'][component])
                 noresmfull.components[component].delete_regridder()
 
 
