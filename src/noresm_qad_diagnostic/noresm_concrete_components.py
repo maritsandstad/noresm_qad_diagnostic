@@ -150,7 +150,11 @@ class NorESMOcnComponent(NorESMAbstractComponent):
         self.regrid_target = make_regular_outgrid()
         self.unit_dict["AMOC"] = "Sv"
 
-        self.regridder = make_regridder(self.weightfile, self.regrid_target)
+        self.regridder = make_regridder(
+            self.weightfile, 
+            self.regrid_target,
+            regrid_mode="bilinear"
+            )
     #def clean_out_empty_folders(self):
     #    clean_empty_folders_in_tree(self.outdir)
 
