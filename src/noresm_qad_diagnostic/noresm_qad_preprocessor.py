@@ -62,6 +62,8 @@ class NorESMQADPreprocessor:
                         continue
                     if os.path.exists(f"{self.paths_preproc}/{run}/{var}_{component}_{run}_preproc.nc"):
                         self.done_list[run].append(var)
+                    elif os.path.exists(f"{self.paths_preproc}/{run}/{var}_{component.replace("-","")}_{run}_preproc.nc"):
+                        self.done_list[run].append(var)
                     elif var == "AMOC" and os.path.exists(f"{self.paths_preproc}/{run}/amoc_26N_{component}_{run}_preproc.nc"):
                         self.done_list[run].append(var)
                     else:
@@ -83,7 +85,10 @@ class NorESMQADPreprocessor:
             elif "All done" in self.done_list[comp][run]:
                 continue
             all_done = True
+            print(f"{self.paths_preproc}/{run}/{comp}_{run}_preproc_climmaps.nc")
             if not os.path.exists(f"{self.paths_preproc}/{run}/{comp}_{run}_preproc_climmaps.nc"):
+                print("Hello 1")
+                all_done = False
                 for var, obslist in self.config_dict["OBS_COMPARE_MAPS"][comp].items():
                     print(var)
                     if var in self.done_list[comp][run]:
@@ -142,20 +147,26 @@ class NorESMQADPreprocessor:
 
     def coax_and_regrid_map_plot_component(self, comp="ocn", year_range=None):
         self.check_if_preproc_files_spec_comp_exist(comp)
+        print("Hello")
         for run, path in self.runs_dict.items():
+            print(run)
+            print("Hello 2")
+            print(self.done_list[comp][run])
             if "All done" in self.done_list[comp][run]:
                 continue
             varlist = self.make_pams_to_send_to_noresm_object(self.done_list[comp][run], comp=comp)
             noresm_comp = KEY_COMP_MAPPING[comp](path, varlist, casename = run)
             outd = noresm_comp.get_annual_mean_map_data(year_range=year_range)
-
+            print("Hello 3")
             # If dataset uses y/x dims but lon/lat coordinates exist separately
             # create 2D lon/lat coordinates from available lon/lat variables
             try:
+                print("Hello 4")
                 dims = list(outd.dims)
             except Exception:
                 dims = []
             if "y" in dims and "x" in dims:
+                print("Hello 5")
                 # Try to find lon/lat variables in dataset
                 lon_var = None
                 lat_var = None

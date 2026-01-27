@@ -72,8 +72,22 @@ class NorESMLndComponent(NorESMAbstractComponent):
         list
             with paths to all the clm2.h0 files
         """
-        #(f"{self.datapath}*.clm2.h0.*.nc")
-        return glob.glob(f"{self.datapath}*.clm2.h0.*.nc")
+        if len(glob.glob((f"{self.datapath}*.clm2.h0.*.nc"))) > 0:
+            return glob.glob(f"{self.datapath}*.clm2.h0.*.nc")
+        if len(glob.glob((f"{self.datapath}*.clm2.h0a.*.nc"))) > 0:
+            return glob.glob(f"{self.datapath}*.clm2.h0a.*.nc")
+        return glob.glob(f"{self.datapath}*.clm2.h0i.*.nc")
+    
+    def _get_mfile_concat(self, varlist, year):
+        mfile = f"{self.datapath}/{self.casename}.{self.get_file_str_for_regex()}.{year:04d}-*.nc"
+        outd_here = None
+        for sfile in glob.glob(mfile):
+            outd_m = xr.open_dataset(sfile, engine="netcdf4")[varlist]
+            if not outd_here:
+                outd_here = outd_m
+            else:
+                outd_here = xr.concat([outd_here, outd_m], dim="time")
+        return outd_here
 
     def regrid(self, data):
         return regrid_se_data(self.regridder, data)
@@ -294,10 +308,16 @@ class NorESMIceComponent(NorESMAbstractComponent):
         if weightfile is None:
             self.weightfile = ("/nird/datalake/NS9560K/diagnostics/land_xesmf_diag_data/grid_tnx1v4_20170622.nc")
         self.precalc_weight_dict()
+        # TODO: Units are probably not correct here, actually for all these four.
         if "aice-antarctic" in self.varpams:
             self.unit_dict["aice-antarctic"] = self.unit_dict["aice"]
         if "aice-antarctic" in self.varpams:
             self.unit_dict["aice-arctic"] = self.unit_dict["aice"]
+        if "vice-antarctic" in self.varpams:
+            self.unit_dict["vice-antarctic"] = self.unit_dict["aice"]
+        if "vice-antarctic" in self.varpams:
+            self.unit_dict["vice-arctic"] = self.unit_dict["aice"]
+        
         self.regridder = make_regridder(self.weightfile, self.regrid_target)
         #self.regridder = make_regridder(self.get_filelist[0], _weight_file_dict[13824], seaice=True)
     #def clean_out_empty_folders(self):
@@ -318,7 +338,9 @@ class NorESMIceComponent(NorESMAbstractComponent):
     def set_composite_variable_dict(self):
         self.composite_variable_dict = {
             "aice-arctic": ["aice", "TLAT", "TLON"],
-            "aice-antarctic": ["aice", "TLAT", "TLON"]
+            "aice-antarctic": ["aice", "TLAT", "TLON"], 
+            "vice-arctic": ["aice", "hi", "TLAT", "TLON"],
+            "vice-antarctic": ["aice", "hi", "TLAT", "TLON"],
             }
 
     def calc_composite_components(self, outd, varlist_in):
@@ -336,21 +358,24 @@ class NorESMIceComponent(NorESMAbstractComponent):
 
     def precalc_weight_dict(self):
         vars_for_weights = list(set(self.varpams.copy()) - set(self.composite_variable_dict.keys()))
-
+        print(vars_for_weights)
         ext_varlist = vars_for_weights.copy()
         for areatype in ["tarea", "uarea", "narea","earea", "TLAT"]:
             ext_varlist.append(areatype)
         datause = xr.open_dataset(self.filelist[0])[ext_varlist]
         self.set_hemisplit(datause["TLAT"])
         for var in vars_for_weights:
+            print(var)
             if "cell_measures" in datause[var].attrs.keys():
                 #print(datause[var].attrs["cell_measures"].split(" ")[-1])
+                print(datause[datause[var].attrs["cell_measures"].split(" ")[-1]])
                 self.weight_dict[var] = datause[datause[var].attrs["cell_measures"].split(" ")[-1]]
 
     def get_weights_regrid(self, outd_here):
         print(outd_here.keys)
         print(self.weight_dict.keys())
         for key, weight in self.weight_dict.items():
+            print(key)
             if key in outd_here.keys():
                 return outd_here, weight
             for okey in outd_here.keys():
@@ -366,8 +391,21 @@ class NorESMIceComponent(NorESMAbstractComponent):
             varlist_in = self.varpams
         if "aice-antarctic" in varlist_in:
             orig_data["aice-antarctic"] = orig_data["aice"].where(orig_data.nj<self.hemisplit_nj, 0)
+            if "aice-antarctic" not in self.weight_dict:
+                self.weight_dict["aice-antarctic"] = self.weight_dict["aice"]
         if "aice-arctic" in varlist_in:
             orig_data["aice-arctic"] = orig_data["aice"].where(orig_data.nj >= self.hemisplit_nj, 0)
+            if "aice-arctic" not in self.weight_dict:
+                self.weight_dict["aice-arctic"] = self.weight_dict["aice"]
+        # TODO: Fix the weight dict statements here to possibly also take hi weights into account
+        if "vice-antarctic" in varlist_in:
+            orig_data["vice-antarctic"] = orig_data["aice"].where(orig_data.nj<self.hemisplit_nj, 0) * orig_data["hi"].where(orig_data.nj<self.hemisplit_nj, 0)
+            if "vice-antarctic" not in self.weight_dict:
+                self.weight_dict["vice-antarctic"] = self.weight_dict["aice"]
+        if "vice-arctic" in varlist_in:
+            orig_data["vice-arctic"] = orig_data["aice"].where(orig_data.nj >= self.hemisplit_nj, 0) * orig_data["hi"].where(orig_data.nj >= self.hemisplit_nj, 0)
+            if "vice-arctic" not in self.weight_dict:
+                self.weight_dict["vice-arctic"] = self.weight_dict["aice"]       
         return orig_data[varlist_in]
 
     def regrid(self, data):
